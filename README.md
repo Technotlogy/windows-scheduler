@@ -117,7 +117,7 @@ git init
 git add .
 git commit -m "Initial commit"
 git branch -M main
-git remote add origin https://github.com/YourName/com-scheduler.git
+git remote add origin https://github.com/Technotlogy/life-scheduler-windows
 git push -u origin main
 ```
 
@@ -143,6 +143,8 @@ It may fail on the first deploy — that's fine, we haven't added the API key ye
 | Name | Value |
 |------|-------|
 | `ANTHROPIC_API_KEY` | your key from console.anthropic.com |
+
+
 | `GOOGLE_CLIENT_SECRET` | *(skip for now, add later if setting up Google Calendar)* |
 | `GOOGLE_CLIENT_ID` | *(skip for now)* |
 | `GOOGLE_REDIRECT_URI` | *(skip for now)* |

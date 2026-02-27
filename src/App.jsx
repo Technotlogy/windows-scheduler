@@ -382,13 +382,21 @@ export default function App(){
   const gcal=useGoogleCalendar()
 
   // Cloud restore: if localStorage is empty (new device / cleared cache),
-  // pull the last synced snapshot from Vercel KV and reload to apply it.
+  // pull the last synced snapshot from Vercel Blob and reload to apply it.
   useEffect(()=>{
-    if(Object.keys(exportData()).length>0)return
+    const localKeys=Object.keys(exportData()).length
+    console.log(`[sync] local data: ${localKeys} keys`)
+    if(localKeys>0){console.log('[sync] local present, skipping restore');return}
+    console.log('[sync] no local data — fetching from cloud…')
     fetch('/api/sync')
       .then(r=>r.json())
-      .then(data=>{if(Object.keys(data).length>0){importData(data);window.location.reload()}})
-      .catch(()=>{})
+      .then(data=>{
+        const cloudKeys=Object.keys(data).length
+        console.log(`[sync] cloud data: ${cloudKeys} keys`)
+        if(cloudKeys>0){console.log('[sync] restoring from cloud…');importData(data);window.location.reload()}
+        else console.log('[sync] cloud is also empty')
+      })
+      .catch(e=>console.warn('[sync] restore failed:',e.message))
   },[])
 
   function streak(items,type){
