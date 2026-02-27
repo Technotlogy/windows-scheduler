@@ -1,65 +1,68 @@
 // api/sync.js — Vercel Edge Function
-// Cloud backup for scheduler data using Vercel Blob REST API directly.
-// No package imports = no Node.js module conflicts with other edge functions.
-// GET  /api/sync  → returns the stored data blob
-// POST /api/sync  → saves the data blob
+// Cloud backup using Vercel Blob REST API (no package imports).
+//
+// JSON save-state:
+//   GET  /api/sync          → returns scheduler/data.json
+//   POST /api/sync          → saves  scheduler/data.json
+//
+// ICS calendar export:
+//   GET  /api/sync?type=ics → returns scheduler/calendar.ics
+//   POST /api/sync?type=ics → saves  scheduler/calendar.ics
 
 export const config = { runtime: 'edge' }
 
 const BLOB_API = 'https://blob.vercel-storage.com'
-const PATH = 'scheduler/data.json'
-const CORS = {
-  'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': '*',
-}
+const PATHS = { json: 'scheduler/data.json', ics: 'scheduler/calendar.ics' }
+const CONTENT_TYPES = { json: 'application/json', ics: 'text/calendar' }
+const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 export default async function handler(req) {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      headers: {
-        ...CORS,
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
+      headers: { ...CORS, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' },
     })
   }
 
   const token = process.env.BLOB_READ_WRITE_TOKEN
   if (!token) {
     return new Response(JSON.stringify({ error: 'Blob not configured' }), {
-      status: 500,
-      headers: CORS,
+      status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     })
   }
 
+  const type = new URL(req.url).searchParams.get('type') === 'ics' ? 'ics' : 'json'
+  const path = PATHS[type]
+  const contentType = CONTENT_TYPES[type]
   const auth = { Authorization: `Bearer ${token}`, 'x-api-version': '7' }
 
   if (req.method === 'GET') {
     try {
-      const r = await fetch(`${BLOB_API}?prefix=${encodeURIComponent(PATH)}&limit=1`, { headers: auth })
+      const r = await fetch(`${BLOB_API}?prefix=${encodeURIComponent(path)}&limit=1`, { headers: auth })
       const { blobs } = await r.json()
-      if (!blobs?.length) return new Response('{}', { headers: CORS })
+      if (!blobs?.length) return new Response(type === 'json' ? '{}' : '', { headers: { ...CORS, 'Content-Type': contentType } })
       const data = await fetch(blobs[0].url, { cache: 'no-store' })
-      return new Response(await data.text(), { headers: CORS })
+      return new Response(await data.text(), { headers: { ...CORS, 'Content-Type': contentType } })
     } catch {
-      return new Response('{}', { headers: CORS })
+      return new Response(type === 'json' ? '{}' : '', { headers: { ...CORS, 'Content-Type': contentType } })
     }
   }
 
   if (req.method === 'POST') {
     try {
       const body = await req.text()
-      await fetch(`${BLOB_API}/${PATH}`, {
+      const r = await fetch(`${BLOB_API}/${path}`, {
         method: 'PUT',
-        headers: { ...auth, 'Content-Type': 'application/json', 'x-add-random-suffix': '0' },
+        headers: { ...auth, 'Content-Type': contentType, 'x-add-random-suffix': '0' },
         body,
       })
-      return new Response(JSON.stringify({ ok: true }), { headers: CORS })
+      if (!r.ok) {
+        const err = await r.text()
+        console.warn(`[sync] blob PUT failed ${r.status}:`, err)
+        return new Response(JSON.stringify({ error: err }), { status: r.status, headers: { ...CORS, 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...CORS, 'Content-Type': 'application/json' } })
     } catch (e) {
-      return new Response(JSON.stringify({ error: e.message }), {
-        status: 500,
-        headers: CORS,
-      })
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } })
     }
   }
 
