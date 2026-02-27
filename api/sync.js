@@ -40,7 +40,7 @@ export default async function handler(req) {
       const r = await fetch(`${BLOB_API}?prefix=${encodeURIComponent(path)}&limit=1`, { headers: auth })
       const { blobs } = await r.json()
       if (!blobs?.length) return new Response(type === 'json' ? '{}' : '', { headers: { ...CORS, 'Content-Type': contentType } })
-      const data = await fetch(blobs[0].url, { cache: 'no-store' })
+      const data = await fetch(`${BLOB_API}/download?url=${encodeURIComponent(blobs[0].url)}`, { headers: auth, cache: 'no-store' })
       return new Response(await data.text(), { headers: { ...CORS, 'Content-Type': contentType } })
     } catch {
       return new Response(type === 'json' ? '{}' : '', { headers: { ...CORS, 'Content-Type': contentType } })
