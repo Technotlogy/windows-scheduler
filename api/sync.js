@@ -5,7 +5,7 @@
 
 import { put, list } from '@vercel/blob'
 
-export const config = { runtime: 'edge' }
+export const config = { runtime: 'nodejs' }
 
 const PATH = 'scheduler/data.json'
 const CORS = {
