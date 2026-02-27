@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePersist, exportData, importData } from './usePersist'
 import { useGoogleCalendar } from './useGoogleCalendar'
 import { parseEvent, autopopulateDay } from './claude'
@@ -321,6 +321,16 @@ export default function App(){
 
   // Google Calendar
   const gcal=useGoogleCalendar()
+
+  // Cloud restore: if localStorage is empty (new device / cleared cache),
+  // pull the last synced snapshot from Vercel KV and reload to apply it.
+  useEffect(()=>{
+    if(Object.keys(exportData()).length>0)return
+    fetch('/api/sync')
+      .then(r=>r.json())
+      .then(data=>{if(Object.keys(data).length>0){importData(data);window.location.reload()}})
+      .catch(()=>{})
+  },[])
 
   function streak(items,type){
     let s=0,d=new Date();d.setHours(0,0,0,0)
