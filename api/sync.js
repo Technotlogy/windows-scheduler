@@ -1,12 +1,12 @@
 // api/sync.js — Vercel Edge Function
-// Cloud backup for scheduler data using Vercel Blob.
+// Cloud backup for scheduler data using Vercel Blob REST API directly.
+// No package imports = no Node.js module conflicts with other edge functions.
 // GET  /api/sync  → returns the stored data blob
 // POST /api/sync  → saves the data blob
 
-import { put, list } from '@vercel/blob'
+export const config = { runtime: 'edge' }
 
-export const config = { runtime: 'nodejs' }
-
+const BLOB_API = 'https://blob.vercel-storage.com'
 const PATH = 'scheduler/data.json'
 const CORS = {
   'Content-Type': 'application/json',
@@ -24,13 +24,23 @@ export default async function handler(req) {
     })
   }
 
+  const token = process.env.BLOB_READ_WRITE_TOKEN
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'Blob not configured' }), {
+      status: 500,
+      headers: CORS,
+    })
+  }
+
+  const auth = { Authorization: `Bearer ${token}`, 'x-api-version': '7' }
+
   if (req.method === 'GET') {
     try {
-      const { blobs } = await list({ prefix: PATH, limit: 1 })
-      if (blobs.length === 0) return new Response('{}', { headers: CORS })
-      const r = await fetch(blobs[0].url, { cache: 'no-store' })
-      const text = await r.text()
-      return new Response(text, { headers: CORS })
+      const r = await fetch(`${BLOB_API}?prefix=${encodeURIComponent(PATH)}&limit=1`, { headers: auth })
+      const { blobs } = await r.json()
+      if (!blobs?.length) return new Response('{}', { headers: CORS })
+      const data = await fetch(blobs[0].url, { cache: 'no-store' })
+      return new Response(await data.text(), { headers: CORS })
     } catch {
       return new Response('{}', { headers: CORS })
     }
@@ -39,10 +49,10 @@ export default async function handler(req) {
   if (req.method === 'POST') {
     try {
       const body = await req.text()
-      await put(PATH, body, {
-        access: 'public',
-        addRandomSuffix: false,
-        contentType: 'application/json',
+      await fetch(`${BLOB_API}/${PATH}`, {
+        method: 'PUT',
+        headers: { ...auth, 'Content-Type': 'application/json', 'x-add-random-suffix': '0' },
+        body,
       })
       return new Response(JSON.stringify({ ok: true }), { headers: CORS })
     } catch (e) {
