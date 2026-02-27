@@ -2,7 +2,7 @@
 // All Claude calls go through /api/claude (the Vercel edge function),
 // which injects the API key server-side. Your key is never in the browser.
 
-const MODEL = 'claude-sonnet-4-20250514'
+const MODEL = 'claude-sonnet-4-5'
 
 export async function claudeCall({ system, userMessage, maxTokens = 1000 }) {
   const res = await fetch('/api/claude', {
@@ -35,7 +35,8 @@ export async function parseEvent(text) {
       userMessage: text,
     })
     return JSON.parse(raw.replace(/```json|```/g, '').trim())
-  } catch {
+  } catch (e) {
+    console.error('parseEvent failed:', e)
     return null
   }
 }
