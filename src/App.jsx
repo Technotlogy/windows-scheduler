@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePersist, exportData, importData } from './usePersist'
 import { useGoogleCalendar } from './useGoogleCalendar'
 import { parseEvent, autopopulateDay } from './claude'
@@ -157,6 +157,65 @@ const S={
   bg:{background:'transparent',color:'#64748b',border:'none',cursor:'pointer',fontSize:12,padding:'2px 6px'},
   ov:{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:999},
   mo:{background:'#1e293b',borderRadius:'16px 16px 0 0',padding:'20px 20px 32px',width:'100%',maxWidth:640,maxHeight:'90vh',overflowY:'auto'},
+}
+
+// ── Dev Console ───────────────────────────────────────────────────────────────
+const LOG_COLORS={log:'#94a3b8',info:'#38bdf8',warn:'#fbbf24',error:'#f87171'}
+const LOG_PREFIX={log:'›',info:'ℹ',warn:'⚠',error:'✕'}
+
+function DevConsole(){
+  const [open,setOpen]=useState(false)
+  const [logs,setLogs]=useState([])
+  const bottomRef=useRef(null)
+
+  useEffect(()=>{
+    const orig={log:console.log,info:console.info,warn:console.warn,error:console.error}
+    const wrap=(type)=>(...args)=>{
+      orig[type](...args)
+      const msg=args.map(a=>{
+        if(a instanceof Error)return`${a.message}${a.stack?'\n'+a.stack:''}`
+        if(typeof a==='object'&&a!==null){try{return JSON.stringify(a)}catch{return String(a)}}
+        return String(a)
+      }).join(' ')
+      setLogs(prev=>[...prev.slice(-400),{id:Date.now()+Math.random(),type,msg,time:new Date().toLocaleTimeString('en-US',{hour12:false})}])
+    }
+    console.log=wrap('log');console.info=wrap('info');console.warn=wrap('warn');console.error=wrap('error')
+    return()=>{console.log=orig.log;console.info=orig.info;console.warn=orig.warn;console.error=orig.error}
+  },[])
+
+  useEffect(()=>{if(open)bottomRef.current?.scrollIntoView({behavior:'smooth'})},[logs,open])
+
+  const W=300
+  return(
+    <>
+      {/* Slide-in panel */}
+      <div style={{position:'fixed',top:0,left:0,bottom:0,width:W,background:'#070d1a',borderRight:'1px solid #1e293b',zIndex:9999,display:'flex',flexDirection:'column',fontFamily:'monospace',fontSize:11,transform:open?'translateX(0)':'translateX(-100%)',transition:'transform 0.2s ease'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 10px',borderBottom:'1px solid #1e293b',background:'#0f172a',flexShrink:0}}>
+          <span style={{color:'#38bdf8',fontWeight:700,fontSize:12}}>⌨ Console</span>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>setLogs([])} style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:11,padding:'2px 6px'}}>clear</button>
+            <button onClick={()=>setOpen(false)} style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:14,padding:'2px 6px',lineHeight:1}}>✕</button>
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
+          {logs.length===0&&<div style={{color:'#334155',padding:'10px 12px'}}>No logs yet.</div>}
+          {logs.map(e=>(
+            <div key={e.id} style={{padding:'3px 10px',borderBottom:'1px solid #0a0f1e',display:'flex',gap:6,alignItems:'flex-start',color:LOG_COLORS[e.type]}}>
+              <span style={{opacity:0.4,flexShrink:0,fontSize:10,marginTop:1,whiteSpace:'nowrap'}}>{e.time}</span>
+              <span style={{flexShrink:0}}>{LOG_PREFIX[e.type]}</span>
+              <span style={{wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{e.msg}</span>
+            </div>
+          ))}
+          <div ref={bottomRef}/>
+        </div>
+      </div>
+
+      {/* Toggle tab — always on left edge */}
+      <button onClick={()=>setOpen(o=>!o)} style={{position:'fixed',left:open?W:0,top:'50%',transform:'translateY(-50%)',background:'#1e293b',border:'1px solid #334155',borderLeft:open?'1px solid #334155':'none',borderRadius:'0 6px 6px 0',color:'#64748b',padding:'10px 4px',cursor:'pointer',zIndex:10000,fontSize:9,writingMode:'vertical-rl',transition:'left 0.2s ease',letterSpacing:1}}>
+        {open?'◀ close':'console ▶'}
+      </button>
+    </>
+  )
 }
 
 // ── Stable top-level components (outside App to prevent focus loss) ──────────
@@ -1124,6 +1183,7 @@ export default function App(){
       {showSettings&&<SettingsPanel/>}
       {suggest&&<SuggestModal/>}
       <ModalBox/>
+      <DevConsole/>
     </div>
   )
 }
