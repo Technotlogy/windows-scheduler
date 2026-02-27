@@ -50,9 +50,23 @@ export default async function handler(req) {
   if (req.method === 'POST') {
     try {
       const body = await req.text()
+
+      // Delete any existing blobs at this prefix before writing — private stores
+      // don't support x-add-random-suffix:0 (that implies public CDN access), so
+      // each PUT gets a random suffix and we clean up stale ones ourselves.
+      const listR = await fetch(`${BLOB_API}?prefix=${encodeURIComponent(path)}&limit=10`, { headers: auth })
+      const { blobs: old } = await listR.json()
+      if (old?.length) {
+        await fetch(BLOB_API, {
+          method: 'DELETE',
+          headers: { ...auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: old.map(b => b.url) }),
+        })
+      }
+
       const r = await fetch(`${BLOB_API}/${path}`, {
         method: 'PUT',
-        headers: { ...auth, 'Content-Type': contentType, 'x-add-random-suffix': '0' },
+        headers: { ...auth, 'Content-Type': contentType },
         body,
       })
       if (!r.ok) {
