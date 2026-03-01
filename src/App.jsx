@@ -13,7 +13,7 @@ const COLORS = {
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const DSHORT=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 const DFULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
-const LOCS=['Home','Planet Fitness','BodyEvolution']
+const LOCS=['Home','Planet Fitness','BodyEvolution','AMP Fitness']
 const EXERCISE_CATS=[
   {id:'push', label:'Push',    sub:'Chest · Triceps · Shoulders'},
   {id:'pull', label:'Pull',    sub:'Back · Biceps · Forearms'},
@@ -357,6 +357,132 @@ function JobApptModalInner({modal,setModal,saveModal}){
   )
 }
 
+// ── Fitness helpers (module-level so they're stable across re-renders) ────────
+// Per-gym colour map reused in modal + overview
+const CAT_COLORS={push:COLORS.day,pull:COLORS.night,legs:COLORS.off,cardio:COLORS.appt,other:COLORS.content}
+
+// Returns {weight, reps, date, loc} for the heaviest logged set of an exercise
+function bestLiftEntry(ex,loc,lifts){
+  let best=null
+  lifts.filter(s=>!loc||loc==='All'||s.location===loc)
+    .forEach(s=>s.lifts.forEach(l=>{
+      if(l.name&&l.name.toLowerCase()===ex.toLowerCase()&&Number(l.weight)>(best?.weight||0))
+        best={weight:Number(l.weight),reps:Number(l.reps)||0,date:s.date,loc:s.location}
+    }))
+  return best
+}
+
+// Map an exercise name back to its category (for legacy sessions without category field)
+function exCategory(name){
+  for(const[cat,list]of Object.entries(PRESET_EXERCISES))
+    if(list.some(e=>e.toLowerCase()===name.toLowerCase()))return cat
+  return 'other'
+}
+
+// ── WorkoutModal (module-level to prevent remount-on-keystroke focus loss) ────
+// When a component is defined *inside* App, React sees a new function reference
+// on every App re-render, causing full unmount → remount → focus loss.
+// Keeping it here gives it a stable identity across renders.
+function WorkoutModal({wf,setWf,saveSession,setShowWorkout,lifts}){
+  const [openCat,setOpenCat]=useState('push')
+  const added=new Set(wf.lifts.map(l=>l.name).filter(Boolean))
+  function addExercise(name,cat){
+    if(added.has(name))return
+    setWf(p=>({...p,lifts:[...p.lifts,{name,category:cat,sets:'',reps:'',weight:'',duration:'',distance:''}]}))
+  }
+  function upd(i,field,val){setWf(p=>({...p,lifts:p.lifts.map((x,j)=>j===i?{...x,[field]:val}:x)}))}
+  return(
+    <div style={S.ov}><div style={S.mo}>
+      <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>🏋 Log Workout Session</div>
+      {/* Date + Location */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
+        <div><label style={{fontSize:12,color:'#94a3b8'}}>Date</label><input type="date" value={wf.date} onChange={e=>setWf(p=>({...p,date:e.target.value}))} style={{...S.inp,marginTop:4}}/></div>
+        <div><label style={{fontSize:12,color:'#94a3b8'}}>Location</label><select value={wf.location} onChange={e=>setWf(p=>({...p,location:e.target.value}))} style={{...S.inp,marginTop:4}}>{LOCS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
+      </div>
+      {/* 5 vertically stacked accordion categories */}
+      <div style={{display:'flex',flexDirection:'column',gap:4,marginBottom:14}}>
+        {EXERCISE_CATS.map(c=>{
+          const isOpen=openCat===c.id,cc=CAT_COLORS[c.id]
+          const catCount=wf.lifts.filter(l=>l.category===c.id).length
+          return(
+            <div key={c.id} style={{borderRadius:8,overflow:'hidden',border:`1px solid ${isOpen?cc:'#1e293b'}`}}>
+              <button onClick={()=>setOpenCat(isOpen?null:c.id)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:isOpen?'#0f172a':'#1e293b',border:'none',cursor:'pointer',textAlign:'left'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontWeight:700,fontSize:13,color:isOpen?cc:'#e2e8f0'}}>{c.label}</span>
+                  {c.sub&&<span style={{fontSize:11,color:'#64748b'}}>{c.sub}</span>}
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  {catCount>0&&<span style={{fontSize:11,color:cc,fontWeight:700}}>{catCount} added</span>}
+                  <span style={{color:'#64748b',fontSize:12}}>{isOpen?'▲':'▼'}</span>
+                </div>
+              </button>
+              {isOpen&&(
+                <div style={{background:'#0a0f1e',padding:'8px 10px',display:'flex',flexWrap:'wrap',gap:5}}>
+                  {PRESET_EXERCISES[c.id].map(name=>{
+                    const pr=bestLiftEntry(name,wf.location,lifts),isAdded=added.has(name)
+                    return(
+                      <button key={name} onClick={()=>addExercise(name,c.id)}
+                        style={{padding:'5px 9px',borderRadius:5,border:'none',fontSize:11,cursor:isAdded?'default':'pointer',whiteSpace:'nowrap',
+                          background:isAdded?'#14532d':'#1e293b',color:isAdded?'#4ade80':'#cbd5e1'}}>
+                        {name}
+                        {pr&&!isAdded&&<span style={{color:'#fbbf24',marginLeft:4,fontSize:10}}>·{pr.weight}×{pr.reps}</span>}
+                        {isAdded&&<span style={{marginLeft:4,fontSize:10}}>✓</span>}
+                      </button>
+                    )
+                  })}
+                  <button onClick={()=>addExercise('',c.id)} style={{padding:'5px 9px',borderRadius:5,border:'1px dashed #334155',fontSize:11,cursor:'pointer',background:'transparent',color:'#64748b'}}>+ Custom</button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {/* Session exercises */}
+      {wf.lifts.length===0
+        ?<div style={{color:'#475569',fontSize:12,textAlign:'center',padding:'8px 0 12px'}}>Expand a category and tap exercises to add them</div>
+        :<div style={{marginBottom:10}}>
+          <div style={{fontSize:11,color:'#64748b',fontWeight:700,marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>This Session</div>
+          {wf.lifts.map((lft,i)=>{
+            const isCardio=lft.category==='cardio'
+            const pr=lft.name?bestLiftEntry(lft.name,wf.location,lifts):null
+            const cc=CAT_COLORS[lft.category]||COLORS.content
+            return(
+              <div key={i} style={{background:'#0a0f1e',borderRadius:8,padding:'8px 10px',marginBottom:6,borderLeft:`3px solid ${cc}`}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
+                  {lft.name
+                    ?<div style={{flex:1,fontWeight:600,fontSize:12,color:'#e2e8f0'}}>
+                        {lft.name}
+                        {pr&&<span style={{fontSize:10,color:'#fbbf24',marginLeft:7,fontWeight:400}}>PR: {pr.weight}lb × {pr.reps}reps</span>}
+                      </div>
+                    :<input placeholder="Exercise name" autoFocus value={lft.name} onChange={e=>upd(i,'name',e.target.value)} style={{...S.inp,flex:1,fontSize:12}}/>
+                  }
+                  <button onClick={()=>setWf(p=>({...p,lifts:p.lifts.filter((_,j)=>j!==i)}))} style={{...S.bs,background:'#7f1d1d',padding:'3px 8px',fontSize:11}}>✕</button>
+                </div>
+                {isCardio
+                  ?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                      <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="Duration" type="number" value={lft.duration} onChange={e=>upd(i,'duration',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b',whiteSpace:'nowrap'}}>min</span></div>
+                      <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="Distance" type="number" step="0.01" value={lft.distance} onChange={e=>upd(i,'distance',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b',whiteSpace:'nowrap'}}>mi</span></div>
+                    </div>
+                  :<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+                      <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="3" type="number" value={lft.sets} onChange={e=>upd(i,'sets',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>sets</span></div>
+                      <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="8" type="number" value={lft.reps} onChange={e=>upd(i,'reps',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>reps</span></div>
+                      <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="0" type="number" value={lft.weight} onChange={e=>upd(i,'weight',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>lbs</span></div>
+                    </div>
+                }
+              </div>
+            )
+          })}
+        </div>
+      }
+      <textarea placeholder="Session notes..." value={wf.notes} onChange={e=>setWf(p=>({...p,notes:e.target.value}))} style={{...S.inp,height:50,resize:'vertical',marginBottom:12}}/>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={saveSession} style={S.bp}>Save Session</button>
+        <button onClick={()=>setShowWorkout(false)} style={S.bs}>Cancel</button>
+      </div>
+    </div></div>
+  )
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App(){
   const [tab,setTab]=useState('daily')
@@ -514,11 +640,6 @@ export default function App(){
     setLifts(p=>[...p,{id:Date.now(),date:wf.date,location:wf.location,lifts:wf.lifts.filter(l=>l.name),notes:wf.notes}])
     setShowWorkout(false)
     setWf({date:dkey(new Date()),location:'Home',lifts:[],notes:''})
-  }
-  function bestLift(ex,loc){
-    let best=0
-    lifts.filter(s=>!loc||loc==='All'||s.location===loc).forEach(s=>s.lifts.forEach(l=>{if(l.name.toLowerCase()===ex.toLowerCase()&&Number(l.weight)>best)best=Number(l.weight)}))
-    return best||null
   }
   function allExercises(){return[...new Set(lifts.flatMap(s=>s.lifts.map(l=>l.name)).filter(Boolean))]}
   function saveModal(){
@@ -754,6 +875,52 @@ export default function App(){
           </div>
         </div>
 
+        {/* Workout Overview */}
+        <div style={{...S.card(COLORS.workout),marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            <div style={{fontWeight:700,fontSize:13,color:COLORS.workout}}>🏋 Workouts</div>
+            <button onClick={()=>{setWf(p=>({...p,date:k}));setShowWorkout(true)}} style={{...S.bs,fontSize:11,padding:'3px 8px'}}>+ Log</button>
+          </div>
+          {daySessions.length===0
+            ?<div style={{color:'#64748b',fontSize:13}}>No sessions logged.</div>
+            :daySessions.map((s,si)=>(
+              <div key={si} style={{background:'#1e293b',borderRadius:6,padding:'7px 10px',marginBottom:6}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}>
+                  <span style={{background:COLORS.workout+'33',color:COLORS.workout,borderRadius:4,padding:'1px 8px',fontSize:11,fontWeight:700}}>{s.location}</span>
+                  {s.notes&&<span style={{fontSize:11,color:'#64748b'}}>{s.notes}</span>}
+                </div>
+                {(s.lifts||[]).length===0
+                  ?<div style={{color:'#475569',fontSize:12}}>No exercises recorded.</div>
+                  :<div style={{display:'flex',flexDirection:'column',gap:3}}>
+                    {(s.lifts||[]).map((l,li)=>{
+                      const cat=exCategory(l.name||'')
+                      const catColor=CAT_COLORS[cat]||COLORS.workout
+                      return(
+                        <div key={li} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
+                          <span style={{width:8,height:8,borderRadius:2,background:catColor,display:'inline-block',flexShrink:0}}/>
+                          <span style={{color:'#e2e8f0',flex:1}}>{l.name||'—'}</span>
+                          {cat==='cardio'
+                            ?<span style={{color:'#94a3b8',fontSize:11}}>
+                                {l.duration?`${l.duration} min`:''}
+                                {l.duration&&l.distance?' · ':''}
+                                {l.distance?`${l.distance} mi`:''}
+                              </span>
+                            :<span style={{color:'#94a3b8',fontSize:11}}>
+                                {l.sets?`${l.sets}×`:''}
+                                {l.reps?`${l.reps} reps`:''}
+                                {l.weight?` · ${l.weight} lb`:''}
+                              </span>
+                          }
+                        </div>
+                      )
+                    })}
+                  </div>
+                }
+              </div>
+            ))
+          }
+        </div>
+
         {/* Wake + Bed routines */}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
           {[['☀ Wake',wakeR,'wake'],['🌙 Bed',bedR,'bed']].map(([title,list,type])=>(
@@ -877,34 +1044,113 @@ export default function App(){
 
   // ── Trends View ────────────────────────────────────────────────────────────
   function TrendsView(){
-    const exList=allExercises(),ex=trendEx||(exList[0]||'')
-    const filtered=lifts.filter(s=>trendLoc==='All'||s.location===trendLoc).flatMap(s=>s.lifts.filter(l=>l.name===ex).map(l=>({...l,date:s.date,location:s.location}))).sort((a,b)=>a.date>b.date?1:-1)
+    const [trendCat,setTrendCat]=useState('push')
+    const exList=allExercises()
+    // Exercises to show in table: presets for this category that have been logged,
+    // plus any custom exercises logged under this category
+    const catExercises=[
+      ...PRESET_EXERCISES[trendCat].filter(n=>exList.includes(n)),
+      ...exList.filter(n=>!Object.values(PRESET_EXERCISES).flat().includes(n)&&exCategory(n)===trendCat),
+    ]
+    // Bar chart data for selected exercise
+    const chartEx=trendEx||(exList[0]||'')
+    const filtered=lifts.filter(s=>trendLoc==='All'||s.location===trendLoc)
+      .flatMap(s=>s.lifts.filter(l=>l.name===chartEx).map(l=>({...l,date:s.date,location:s.location})))
+      .sort((a,b)=>a.date>b.date?1:-1)
     const maxW=Math.max(...filtered.map(l=>Number(l.weight)||0),1)
+    const locColors=[COLORS.off,COLORS.day,COLORS.content,COLORS.appt]
     return(
       <div>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        {/* Header */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
           <div style={{fontWeight:700,fontSize:16}}>📈 Strength Trends</div>
           <button onClick={()=>{setWf({date:dkey(new Date()),location:'Home',lifts:[],notes:''});setShowWorkout(true)}} style={{...S.bp,fontSize:12,padding:'6px 14px'}}>🏋 Log Workout</button>
         </div>
-        <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-          <select value={ex} onChange={e=>setTrendEx(e.target.value)} style={{...S.inp,width:'auto'}}>{exList.length===0&&<option>No lifts logged yet</option>}{exList.map(e=><option key={e} value={e}>{e}</option>)}</select>
-          <select value={trendLoc} onChange={e=>setTrendLoc(e.target.value)} style={{...S.inp,width:'auto'}}><option value="All">All Locations</option>{LOCS.map(l=><option key={l} value={l}>{l}</option>)}</select>
+
+        {/* Horizontal category tabs — same layout as the input modal */}
+        <div style={{display:'flex',gap:4,marginBottom:14}}>
+          {EXERCISE_CATS.map(c=>{
+            const isActive=trendCat===c.id,cc=CAT_COLORS[c.id]
+            const logged=PRESET_EXERCISES[c.id].filter(n=>exList.includes(n)).length
+            return(
+              <button key={c.id} onClick={()=>setTrendCat(c.id)} style={{flex:'1 1 0',minWidth:0,padding:'7px 4px',borderRadius:7,border:'none',cursor:'pointer',textAlign:'center',lineHeight:1.3,
+                background:isActive?'#0f172a':'#1e293b',color:isActive?cc:'#94a3b8',
+                outline:isActive?`2px solid ${cc}`:'none',fontWeight:700,fontSize:11}}>
+                <div>{c.label}</div>
+                {c.sub&&<div style={{fontSize:8,fontWeight:400,opacity:0.75,marginTop:1}}>{c.sub}</div>}
+                {logged>0&&<div style={{fontSize:9,color:isActive?cc:'#475569',marginTop:2}}>{logged} logged</div>}
+              </button>
+            )
+          })}
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
-          {LOCS.map(loc=>{const pr=bestLift(ex,loc);return(<div key={loc} style={{background:'#0f172a',borderRadius:8,padding:12,textAlign:'center'}}><div style={{fontSize:11,color:'#64748b',marginBottom:4}}>{loc}</div><div style={{fontSize:20,fontWeight:800,color:pr?COLORS.workout:'#334155'}}>{pr?`${pr} lbs`:'—'}</div><div style={{fontSize:10,color:'#475569'}}>PR</div></div>)})}
-        </div>
-        {filtered.length>0?(
+
+        {/* PR table — one row per exercise, one column per gym */}
+        {catExercises.length===0
+          ?<div style={{color:'#64748b',fontSize:13,textAlign:'center',padding:'24px 0',background:'#0f172a',borderRadius:10}}>
+              No {EXERCISE_CATS.find(c=>c.id===trendCat)?.label} exercises logged yet.<br/>
+              <span style={{fontSize:11}}>Log a session to see PRs here.</span>
+            </div>
+          :<div style={{background:'#0f172a',borderRadius:10,overflow:'hidden',marginBottom:16}}>
+            {/* Column headers */}
+            <div style={{display:'grid',gridTemplateColumns:`2fr ${LOCS.map(()=>'1fr').join(' ')}`,gap:2,padding:'7px 12px',background:'#0a0f1e',borderBottom:'1px solid #1e293b'}}>
+              <div style={{fontSize:10,color:'#64748b',fontWeight:700}}>Exercise</div>
+              {LOCS.map(loc=><div key={loc} style={{fontSize:10,color:'#64748b',fontWeight:700,textAlign:'center'}}>{loc.split(' ')[0]}</div>)}
+            </div>
+            {catExercises.map((name,i)=>(
+              <div key={name} onClick={()=>{setTrendEx(name);setTrendLoc('All')}}
+                style={{display:'grid',gridTemplateColumns:`2fr ${LOCS.map(()=>'1fr').join(' ')}`,gap:2,padding:'8px 12px',cursor:'pointer',
+                  background:trendEx===name?'#172033':i%2===0?'#0f172a':'#111827',
+                  borderLeft:trendEx===name?`3px solid ${CAT_COLORS[trendCat]}`:'3px solid transparent'}}>
+                <div style={{fontSize:12,fontWeight:600,color:trendEx===name?CAT_COLORS[trendCat]:'#e2e8f0'}}>{name}</div>
+                {LOCS.map(loc=>{
+                  const pr=bestLiftEntry(name,loc,lifts)
+                  return(
+                    <div key={loc} style={{textAlign:'center',fontSize:11}}>
+                      {pr
+                        ?<span><span style={{fontWeight:700,color:COLORS.workout}}>{pr.weight}</span>{pr.reps>0&&<span style={{color:'#64748b',fontSize:10}}>×{pr.reps}</span>}</span>
+                        :<span style={{color:'#334155'}}>—</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        }
+
+        {/* Bar chart for clicked exercise */}
+        {trendEx&&filtered.length>0&&(
           <div style={{background:'#0f172a',borderRadius:10,padding:14}}>
-            <div style={{fontSize:12,color:'#94a3b8',marginBottom:10}}>Weight over time (last 20)</div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,flexWrap:'wrap',gap:6}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#e2e8f0'}}>{trendEx}</div>
+              <select value={trendLoc} onChange={e=>setTrendLoc(e.target.value)} style={{...S.inp,width:'auto',fontSize:11,padding:'4px 8px'}}>
+                <option value="All">All Gyms</option>
+                {LOCS.map(l=><option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
             <div style={{display:'flex',gap:3,alignItems:'flex-end',height:100}}>
               {filtered.slice(-20).map((l,i)=>{
                 const h=Math.max(4,Math.round((Number(l.weight)/maxW)*90))
-                const lc=l.location==='Home'?COLORS.off:l.location==='Planet Fitness'?COLORS.day:COLORS.content
-                return(<div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}><div style={{fontSize:8,color:'#64748b'}}>{l.weight}</div><div style={{width:'100%',height:h,background:lc,borderRadius:'2px 2px 0 0'}}/><div style={{fontSize:7,color:'#475569',transform:'rotate(-45deg)',transformOrigin:'top left',marginTop:2,whiteSpace:'nowrap'}}>{(l.date||'').slice(5)}</div></div>)
+                const lc=locColors[LOCS.indexOf(l.location)]||COLORS.workout
+                return(
+                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                    <div style={{fontSize:8,color:'#64748b'}}>{l.weight}</div>
+                    <div title={`${l.weight}lb × ${l.reps} reps — ${l.date}`} style={{width:'100%',height:h,background:lc,borderRadius:'2px 2px 0 0'}}/>
+                    <div style={{fontSize:7,color:'#475569',transform:'rotate(-45deg)',transformOrigin:'top left',marginTop:2,whiteSpace:'nowrap'}}>{(l.date||'').slice(5)}</div>
+                  </div>
+                )
               })}
             </div>
+            {/* Gym colour legend */}
+            <div style={{display:'flex',gap:10,marginTop:10,flexWrap:'wrap'}}>
+              {LOCS.map((loc,i)=>(
+                <div key={loc} style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#94a3b8'}}>
+                  <div style={{width:8,height:8,borderRadius:2,background:locColors[i]||COLORS.workout}}/>
+                  {loc}
+                </div>
+              ))}
+            </div>
           </div>
-        ):<div style={{color:'#64748b',fontSize:13}}>No data yet. Log some sessions!</div>}
+        )}
       </div>
     )
   }
@@ -959,117 +1205,6 @@ export default function App(){
       )
     }
     return<JobApptModalInner modal={modal} setModal={setModal} saveModal={saveModal}/>
-  }
-
-  function WorkoutModal(){
-    const [openCat,setOpenCat]=useState('push')
-    const added=new Set(wf.lifts.map(l=>l.name).filter(Boolean))
-    function addExercise(name,cat){
-      if(added.has(name))return
-      setWf(p=>({...p,lifts:[...p.lifts,{name,category:cat,sets:'',reps:'',weight:'',duration:'',distance:''}]}))
-    }
-    function upd(i,field,val){setWf(p=>({...p,lifts:p.lifts.map((x,j)=>j===i?{...x,[field]:val}:x)}))}
-    const CAT_COLORS={push:COLORS.day,pull:COLORS.night,legs:COLORS.off,cardio:COLORS.appt,other:COLORS.content}
-    return(
-      <div style={S.ov}><div style={S.mo}>
-        <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>🏋 Log Workout Session</div>
-
-        {/* Date + Location */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-          <div><label style={{fontSize:12,color:'#94a3b8'}}>Date</label><input type="date" value={wf.date} onChange={e=>setWf(p=>({...p,date:e.target.value}))} style={{...S.inp,marginTop:4}}/></div>
-          <div><label style={{fontSize:12,color:'#94a3b8'}}>Location</label><select value={wf.location} onChange={e=>setWf(p=>({...p,location:e.target.value}))} style={{...S.inp,marginTop:4}}>{LOCS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
-        </div>
-
-        {/* 5 vertically stacked muscle group accordions */}
-        <div style={{display:'flex',flexDirection:'column',gap:4,marginBottom:14}}>
-          {EXERCISE_CATS.map(c=>{
-            const isOpen=openCat===c.id
-            const cc=CAT_COLORS[c.id]
-            const catCount=wf.lifts.filter(l=>l.category===c.id).length
-            return(
-              <div key={c.id} style={{borderRadius:8,overflow:'hidden',border:`1px solid ${isOpen?cc:'#1e293b'}`}}>
-                {/* Category header */}
-                <button onClick={()=>setOpenCat(isOpen?null:c.id)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:isOpen?'#0f172a':'#1e293b',border:'none',cursor:'pointer',textAlign:'left'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontWeight:700,fontSize:13,color:isOpen?cc:'#e2e8f0'}}>{c.label}</span>
-                    {c.sub&&<span style={{fontSize:11,color:'#64748b'}}>{c.sub}</span>}
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    {catCount>0&&<span style={{fontSize:11,color:cc,fontWeight:700}}>{catCount} added</span>}
-                    <span style={{color:'#64748b',fontSize:12}}>{isOpen?'▲':'▼'}</span>
-                  </div>
-                </button>
-                {/* Exercise picker (open state) */}
-                {isOpen&&(
-                  <div style={{background:'#0a0f1e',padding:'8px 10px',display:'flex',flexWrap:'wrap',gap:5}}>
-                    {PRESET_EXERCISES[c.id].map(name=>{
-                      const pr=bestLift(name,wf.location),isAdded=added.has(name)
-                      return(
-                        <button key={name} onClick={()=>addExercise(name,c.id)}
-                          style={{padding:'5px 9px',borderRadius:5,border:'none',fontSize:11,cursor:isAdded?'default':'pointer',whiteSpace:'nowrap',
-                            background:isAdded?'#14532d':'#1e293b',color:isAdded?'#4ade80':'#cbd5e1'}}>
-                          {name}
-                          {pr&&!isAdded&&<span style={{color:'#fbbf24',marginLeft:4,fontSize:10}}>·{pr}lb</span>}
-                          {isAdded&&<span style={{marginLeft:4,fontSize:10}}>✓</span>}
-                        </button>
-                      )
-                    })}
-                    <button onClick={()=>addExercise('',c.id)}
-                      style={{padding:'5px 9px',borderRadius:5,border:'1px dashed #334155',fontSize:11,cursor:'pointer',background:'transparent',color:'#64748b'}}>
-                      + Custom
-                    </button>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Session exercises list */}
-        {wf.lifts.length===0
-          ?<div style={{color:'#475569',fontSize:12,textAlign:'center',padding:'8px 0 12px'}}>Expand a category above and tap exercises to add them</div>
-          :<div style={{marginBottom:10}}>
-            <div style={{fontSize:11,color:'#64748b',fontWeight:700,marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>This Session</div>
-            {wf.lifts.map((lft,i)=>{
-              const isCardio=lft.category==='cardio'
-              const pr=lft.name?bestLift(lft.name,wf.location):null
-              const cc=CAT_COLORS[lft.category]||COLORS.content
-              return(
-                <div key={i} style={{background:'#0a0f1e',borderRadius:8,padding:'8px 10px',marginBottom:6,borderLeft:`3px solid ${cc}`}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:isCardio||lft.sets!==undefined?5:0}}>
-                    {lft.name
-                      ?<div style={{flex:1,fontWeight:600,fontSize:12,color:'#e2e8f0'}}>
-                          {lft.name}
-                          {pr&&<span style={{fontSize:10,color:'#fbbf24',marginLeft:7,fontWeight:400}}>PR: {pr} lbs</span>}
-                        </div>
-                      :<input placeholder="Exercise name" autoFocus value={lft.name} onChange={e=>upd(i,'name',e.target.value)} style={{...S.inp,flex:1,fontSize:12}}/>
-                    }
-                    <button onClick={()=>setWf(p=>({...p,lifts:p.lifts.filter((_,j)=>j!==i)}))} style={{...S.bs,background:'#7f1d1d',padding:'3px 8px',fontSize:11}}>✕</button>
-                  </div>
-                  {isCardio
-                    ?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="Duration" type="number" value={lft.duration} onChange={e=>upd(i,'duration',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b',whiteSpace:'nowrap'}}>min</span></div>
-                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="Distance" type="number" step="0.01" value={lft.distance} onChange={e=>upd(i,'distance',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b',whiteSpace:'nowrap'}}>mi</span></div>
-                      </div>
-                    :<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
-                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="3" type="number" value={lft.sets} onChange={e=>upd(i,'sets',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>sets</span></div>
-                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="8" type="number" value={lft.reps} onChange={e=>upd(i,'reps',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>reps</span></div>
-                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="0" type="number" value={lft.weight} onChange={e=>upd(i,'weight',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>lbs</span></div>
-                      </div>
-                  }
-                </div>
-              )
-            })}
-          </div>
-        }
-
-        <textarea placeholder="Session notes..." value={wf.notes} onChange={e=>setWf(p=>({...p,notes:e.target.value}))} style={{...S.inp,height:50,resize:'vertical',marginBottom:12}}/>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={saveSession} style={S.bp}>Save Session</button>
-          <button onClick={()=>setShowWorkout(false)} style={S.bs}>Cancel</button>
-        </div>
-      </div></div>
-    )
   }
 
   function SleepSettingsModal(){
@@ -1355,7 +1490,7 @@ export default function App(){
       {showSD&&<SDEditor/>}
       {showRout&&<RoutineEditor/>}
       {showTask&&<TaskEditorModal/>}
-      {showWorkout&&<WorkoutModal/>}
+      {showWorkout&&<WorkoutModal wf={wf} setWf={setWf} saveSession={saveSession} setShowWorkout={setShowWorkout} lifts={lifts}/>}
       {showNutGoals&&<NutGoalsModal/>}
       {showSleepSettings&&<SleepSettingsModal/>}
       {showSettings&&<SettingsPanel/>}
