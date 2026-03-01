@@ -50,13 +50,14 @@ function parseTime(str){
   return h+min/60
 }
 
-function getDayBlock(cycle,start,date){
+function getDayBlock(cycle,start,date,offset=0){
   const s=new Date(start);s.setHours(0,0,0,0)
   const d=new Date(date);d.setHours(0,0,0,0)
   const diff=Math.round((d-s)/86400000)
-  if(diff<0)return null
   const tot=cycle.reduce((a,b)=>a+b.days,0)
-  let pos=diff%tot,acc=0
+  if(!tot)return null
+  // Use ((n%m)+m)%m so negative diffs (dates before cycleStart) wrap correctly
+  let pos=((diff+offset)%tot+tot)%tot,acc=0
   for(const b of cycle){if(pos<acc+b.days)return b;acc+=b.days}
   return cycle[cycle.length-1]||null
 }
@@ -68,15 +69,15 @@ function inShutdown(sd,date){
   if(sd.end){const e=new Date(sd.end);e.setHours(0,0,0,0);if(d>e)return false}
   return true
 }
-function effBlock(cycle,start,sd,date){
+function effBlock(cycle,start,sd,date,offset=0){
   if(inShutdown(sd,date))return{type:sd.type,label:`Shutdown ${sd.type==='day'?'Days':'Nights'}`,sh:sd.type==='day'?8:20,eh:sd.type==='day'?20:8,isSD:true}
-  return getDayBlock(cycle,start,date)
+  return getDayBlock(cycle,start,date,offset)
 }
-function suggestDay(cycle,start,sd,jobs,tasks,nb){
+function suggestDay(cycle,start,sd,jobs,tasks,nb,offset=0){
   const from=nb?new Date(nb):new Date();from.setHours(0,0,0,0)
   let best=null,bs=Infinity
   for(let i=0;i<21;i++){
-    const d=addDays(from,i),b=effBlock(cycle,start,sd,d)
+    const d=addDays(from,i),b=effBlock(cycle,start,sd,d,offset)
     if(!b||b.type!=='off')continue
     const load=(jobs[dkey(d)]||[]).length+tasks.filter(t=>t.date===dkey(d)).length
     if(load<bs){bs=load;best=d}
@@ -333,6 +334,7 @@ export default function App(){
 
   // Persisted state (survives refresh / PWA restart)
   const [cycleStart,setCycleStart]=usePersist('cycleStart',()=>{const d=new Date();d.setHours(0,0,0,0);return d.toISOString().split('T')[0]})
+  const [cycleOffset,setCycleOffset]=usePersist('cycleOffset',0)  // which day of cycle the start date falls on
   const [cycle,setCycle]=usePersist('cycle',DEF_CYCLE)
   const [commuteMin,setCommuteMin]=usePersist('commuteMin',60)
   const [sd,setSd]=usePersist('sd',{active:false,type:'night',start:'',end:''})
@@ -352,6 +354,12 @@ export default function App(){
     {id:1,text:'Do the dishes',type:'recurring',recur:'daily',date:null,done:{},priority:'normal'},
     {id:2,text:'Call doctor re: respiratory',type:'followup',date:null,notBefore:'',done:{},priority:'high'},
   ])
+
+  // Drag-and-drop refs for reordering jobs / appointments within a day
+  const jobDragFrom=useRef(null),jobDragTo=useRef(null)
+  const apptDragFrom=useRef(null),apptDragTo=useRef(null)
+  const [jobDragOverIdx,setJobDragOverIdx]=useState(null)
+  const [apptDragOverIdx,setApptDragOverIdx]=useState(null)
 
   // Ephemeral UI state
   const [modal,setModal]=useState(null)
@@ -454,7 +462,7 @@ export default function App(){
   function doAddTask(){
     if(!newTask.text.trim())return
     const t={...newTask,id:Date.now(),done:{}}
-    if(t.type==='followup'){setSuggest({task:t,day:suggestDay(cycle,cycleStart,sd,jobs,tasks,t.notBefore)});setShowTask(false);return}
+    if(t.type==='followup'){setSuggest({task:t,day:suggestDay(cycle,cycleStart,sd,jobs,tasks,t.notBefore,cycleOffset)});setShowTask(false);return}
     setTasks(p=>[...p,t])
     setNewTask({text:'',type:'today',date:'',notBefore:'',recur:'daily',recurDays:[],priority:'normal',duration:''})
     setShowTask(false)
@@ -490,7 +498,7 @@ export default function App(){
     setModal(null)
   }
   async function runAutopopulate(date){
-    const k=dkey(date),block=effBlock(cycle,cycleStart,sd,date)
+    const k=dkey(date),block=effBlock(cycle,cycleStart,sd,date,cycleOffset)
     const tlBlocks=buildTimeline(block,sleepSettings,appts,jobs,{[k]:lifts.some(s=>s.date===k)?true:null},meals,wakeR,bedR,k,commuteMin)
     const openSlots=fillGaps(tlBlocks).filter(b=>b.type==='open')
     if(!openSlots.length)return
@@ -505,7 +513,7 @@ export default function App(){
 
   // ── Google Calendar sync for selected day ─────────────────────────────────
   async function syncDayToGcal(date){
-    const k=dkey(date),block=effBlock(cycle,cycleStart,sd,date)
+    const k=dkey(date),block=effBlock(cycle,cycleStart,sd,date,cycleOffset)
     await gcal.syncDay({
       date:k,block,
       jobs:jobs[k]||[],
@@ -519,7 +527,7 @@ export default function App(){
 
   // ── Timeline ──────────────────────────────────────────────────────────────
   function DailyTimeline({date}){
-    const k=dkey(date),block=effBlock(cycle,cycleStart,sd,date)
+    const k=dkey(date),block=effBlock(cycle,cycleStart,sd,date,cycleOffset)
     const tlBlocks=buildTimeline(block,sleepSettings,appts,jobs,{[k]:lifts.some(s=>s.date===k)?true:null},meals,wakeR,bedR,k,commuteMin)
     const withGaps=fillGaps(tlBlocks)
     const suggestions=autoSuggestions[k]||[]
@@ -620,7 +628,7 @@ export default function App(){
 
   // ── Daily View ────────────────────────────────────────────────────────────
   function DailyView(){
-    const date=selDay,k=dkey(date),block=effBlock(cycle,cycleStart,sd,date)
+    const date=selDay,k=dkey(date),block=effBlock(cycle,cycleStart,sd,date,cycleOffset)
     const isToday=sameDay(date,new Date()),dtasks=tasksForDay(date)
     const hi=dtasks.filter(t=>t.priority==='high'),lo=dtasks.filter(t=>t.priority!=='high')
     const nut=nutLog[k]||{},daySessions=lifts.filter(s=>s.date===k)
@@ -667,8 +675,19 @@ export default function App(){
               <button onClick={()=>setModal({type:'appointment',day:date,data:{}})} style={{...S.bs,fontSize:11,padding:'3px 8px'}}>+ Add</button>
             </div>
             {(appts[k]||[]).length===0&&<div style={{color:'#64748b',fontSize:13}}>None</div>}
-            {(appts[k]||[]).map(a=>(
-              <div key={a.id} style={{background:'#1e293b',borderRadius:6,padding:'6px 8px',marginBottom:5,fontSize:12}}>
+            {(appts[k]||[]).map((a,idx)=>(
+              <div key={a.id}
+                draggable
+                onDragStart={()=>{apptDragFrom.current=idx;apptDragTo.current=idx}}
+                onDragEnter={()=>{apptDragTo.current=idx;setApptDragOverIdx(idx)}}
+                onDragOver={e=>e.preventDefault()}
+                onDragLeave={()=>setApptDragOverIdx(null)}
+                onDragEnd={()=>{
+                  const from=apptDragFrom.current,to=apptDragTo.current
+                  if(from!==null&&to!==null&&from!==to)setAppts(p=>{const arr=[...(p[k]||[])];const[m]=arr.splice(from,1);arr.splice(to,0,m);return{...p,[k]:arr}})
+                  apptDragFrom.current=null;apptDragTo.current=null;setApptDragOverIdx(null)
+                }}
+                style={{background:'#1e293b',borderRadius:6,padding:'6px 8px',marginBottom:5,fontSize:12,cursor:'grab',outline:apptDragOverIdx===idx?'2px dashed '+COLORS.appt:'none'}}>
                 <div style={{fontWeight:700}}>{a.time&&<span style={{color:COLORS.appt,marginRight:5}}>{a.time}</span>}{a.title}</div>
                 {a.person&&<div style={{color:'#94a3b8'}}>{a.person}{a.contact&&` · ${a.contact}`}</div>}
                 {(a.duration||a.travelTime)&&<div style={{color:'#475569',fontSize:11}}>{a.duration&&`⏱ ${a.duration}`}{a.duration&&a.travelTime&&' · '}{a.travelTime&&`🚗 ${a.travelTime} each way`}</div>}
@@ -681,8 +700,19 @@ export default function App(){
               <button onClick={()=>setModal({type:'job',day:date,data:{}})} style={{...S.bs,fontSize:11,padding:'3px 8px'}}>+ Add</button>
             </div>
             {(jobs[k]||[]).length===0&&<div style={{color:'#64748b',fontSize:13}}>None</div>}
-            {(jobs[k]||[]).map(j=>(
-              <div key={j.id} style={{background:'#1e293b',borderRadius:6,padding:'6px 8px',marginBottom:5,fontSize:12}}>
+            {(jobs[k]||[]).map((j,idx)=>(
+              <div key={j.id}
+                draggable
+                onDragStart={()=>{jobDragFrom.current=idx;jobDragTo.current=idx}}
+                onDragEnter={()=>{jobDragTo.current=idx;setJobDragOverIdx(idx)}}
+                onDragOver={e=>e.preventDefault()}
+                onDragLeave={()=>setJobDragOverIdx(null)}
+                onDragEnd={()=>{
+                  const from=jobDragFrom.current,to=jobDragTo.current
+                  if(from!==null&&to!==null&&from!==to)setJobs(p=>{const arr=[...(p[k]||[])];const[m]=arr.splice(from,1);arr.splice(to,0,m);return{...p,[k]:arr}})
+                  jobDragFrom.current=null;jobDragTo.current=null;setJobDragOverIdx(null)
+                }}
+                style={{background:'#1e293b',borderRadius:6,padding:'6px 8px',marginBottom:5,fontSize:12,cursor:'grab',outline:jobDragOverIdx===idx?'2px dashed '+COLORS.work:'none'}}>
                 <div style={{fontWeight:700}}>{j.time&&<span style={{color:COLORS.work,marginRight:5}}>{j.time}</span>}{j.name}</div>
                 <div style={{color:'#94a3b8'}}>{j.person}{j.contact&&` · ${j.contact}`}</div>
                 {(j.duration||j.travelTime)&&<div style={{color:'#475569',fontSize:11}}>{j.duration&&`⏱ ${j.duration}`}{j.duration&&j.travelTime&&' · '}{j.travelTime&&`🚗 ${j.travelTime} each way`}</div>}
@@ -754,7 +784,7 @@ export default function App(){
         )}
         <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>
           {dates.map((date,i)=>{
-            const k=dkey(date),isToday=sameDay(date,new Date()),block=effBlock(cycle,cycleStart,sd,date)
+            const k=dkey(date),isToday=sameDay(date,new Date()),block=effBlock(cycle,cycleStart,sd,date,cycleOffset)
             const dt=tasksForDay(date),hasOD=dt.some(t=>isOD(t))
             const bc=block?.type==='off'?COLORS.off:block?.type==='day'?COLORS.day:COLORS.night
             return(
@@ -792,7 +822,7 @@ export default function App(){
         <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
           {dates.map((date,i)=>{
             const inM=date.getMonth()===mv.m,isToday=sameDay(date,today)
-            const block=effBlock(cycle,cycleStart,sd,date),k=dkey(date)
+            const block=effBlock(cycle,cycleStart,sd,date,cycleOffset),k=dkey(date)
             const dt=tasksForDay(date),hasOD=dt.some(t=>isOD(t))
             const dc=inShutdown(sd,date)?'#f97316':block?.type==='day'?COLORS.day:block?.type==='night'?COLORS.night:COLORS.off
             return(
@@ -1015,7 +1045,21 @@ export default function App(){
     const [lc,setLc]=useState(cycle.map(b=>({...b})))
     const [ls,setLs]=useState(cycleStart)
     const [lCommute,setLCommute]=useState(commuteMin)
+    const [lOffset,setLOffset]=useState(cycleOffset)
     function upd(i,f,v){setLc(p=>p.map((b,idx)=>idx===i?{...b,[f]:['days','sh','eh'].includes(f)?(v===''?null:Number(v)):v}:b))}
+    // Build a flat list of every day in the current cycle draft for the offset picker
+    function cycleOptions(){
+      const opts=[];let pos=0
+      lc.forEach(b=>{
+        const n=Math.max(1,b.days||1)
+        for(let i=0;i<n;i++){
+          const lbl=n===1?b.label:`${b.label} — day ${i+1} of ${n}`
+          opts.push(<option key={pos} value={pos}>{`Day ${pos+1}: ${lbl}`}</option>)
+          pos++
+        }
+      })
+      return opts
+    }
     return(
       <div style={S.ov}><div style={S.mo}>
         <div style={{fontWeight:700,fontSize:16,marginBottom:12}}>⚙ DuPont Cycle Editor</div>
@@ -1031,6 +1075,14 @@ export default function App(){
             <div style={{fontSize:11,color:'#475569',marginTop:3}}>Shown on timeline before &amp; after each shift</div>
           </div>
         </div>
+        {/* Cycle offset: which day of the cycle the start date represents */}
+        <div style={{marginBottom:12}}>
+          <label style={{fontSize:12,color:'#94a3b8'}}>📍 On the start date, I'm on…</label>
+          <select value={lOffset} onChange={e=>setLOffset(Number(e.target.value))} style={{...S.inp,marginTop:4,width:'100%'}}>
+            {cycleOptions()}
+          </select>
+          <div style={{fontSize:11,color:'#475569',marginTop:3}}>Use this if your cycle was already in progress when you set the start date — e.g. you were already on day 3 of Night Shift</div>
+        </div>
         {lc.map((b,i)=>(
           <div key={i} style={{background:'#0f172a',borderRadius:8,padding:10,marginBottom:8}}>
             <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
@@ -1044,7 +1096,7 @@ export default function App(){
         ))}
         <button onClick={()=>setLc(p=>[...p,{label:'New Block',type:'off',days:1,sh:null,eh:null}])} style={{...S.bs,marginBottom:12}}>+ Add Block</button>
         <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>{setCycle(lc);setCycleStart(ls);setCommuteMin(lCommute);setShowCycle(false)}} style={S.bp}>Save</button>
+          <button onClick={()=>{setCycle(lc);setCycleStart(ls);setCommuteMin(lCommute);setCycleOffset(lOffset);setShowCycle(false)}} style={S.bp}>Save</button>
           <button onClick={()=>setShowCycle(false)} style={S.bs}>Cancel</button>
         </div>
       </div></div>
