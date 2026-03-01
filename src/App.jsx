@@ -14,6 +14,38 @@ const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov',
 const DSHORT=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 const DFULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 const LOCS=['Home','Planet Fitness','BodyEvolution']
+const EXERCISE_CATS=[
+  {id:'push', label:'Push',    sub:'Chest · Triceps · Shoulders'},
+  {id:'pull', label:'Pull',    sub:'Back · Biceps · Forearms'},
+  {id:'legs', label:'Legs',    sub:''},
+  {id:'cardio',label:'Cardio', sub:''},
+  {id:'other', label:'Other',  sub:''},
+]
+const PRESET_EXERCISES={
+  push:[
+    'Bench Press','Incline DB Press','Decline Bench Press','DB Fly','Cable Fly',
+    'Chest Dip','Overhead Press','Lateral Raise','Front Raise','Face Pull',
+    'Tricep Pushdown','Skull Crusher','Close-Grip Bench','Dip','Cable Lateral Raise',
+  ],
+  pull:[
+    'Pull-Up','Weighted Pull-Up','Lat Pulldown','Cable Row','Barbell Row',
+    'DB Row','T-Bar Row','Deadlift','Romanian Deadlift','Shrug',
+    'Barbell Curl','DB Curl','Hammer Curl','Preacher Curl','Reverse Curl','Incline DB Curl',
+  ],
+  legs:[
+    'Squat','Leg Press','Romanian Deadlift','Leg Curl','Leg Extension',
+    'Hip Thrust','Calf Raise','Lunges','Bulgarian Split Squat','Hack Squat',
+    'Sumo Deadlift','Box Jump',
+  ],
+  cardio:[
+    'Treadmill','Elliptical','Stair Master','Stationary Bike',
+    'Jump Rope','Row Machine','Outdoor Run','Swim',
+  ],
+  other:[
+    'Plank','Crunches','Cable Crunch','Hanging Leg Raise',
+    'Russian Twist','Ab Wheel','Farmers Walk','Battle Ropes',
+  ],
+}
 const STAGES=['idea','script','film','edit','published']
 const STAGE_COLORS={idea:'#475569',script:'#7c3aed',film:'#dc2626',edit:'#d97706',published:'#16a34a'}
 const STAGE_LABELS={idea:'💡 Idea',script:'✍ Script',film:'🎬 Film',edit:'✂ Edit',published:'✅ Published'}
@@ -377,7 +409,7 @@ export default function App(){
   const [quickFb,setQuickFb]=useState('')
   const [newTask,setNewTask]=useState({text:'',type:'today',date:'',notBefore:'',recur:'daily',recurDays:[],priority:'normal',duration:''})
   const [routNewItem,setRoutNewItem]=useState({wake:'',bed:''})
-  const [wf,setWf]=useState({date:dkey(new Date()),location:'Home',lifts:[{name:'',sets:'',reps:'',weight:''}],notes:''})
+  const [wf,setWf]=useState({date:dkey(new Date()),location:'Home',lifts:[],notes:''})
   const [nf,setNf]=useState({calories:'',protein:'',carbs:'',fat:''})
   const [trendEx,setTrendEx]=useState('')
   const [trendLoc,setTrendLoc]=useState('All')
@@ -481,7 +513,7 @@ export default function App(){
   function saveSession(){
     setLifts(p=>[...p,{id:Date.now(),date:wf.date,location:wf.location,lifts:wf.lifts.filter(l=>l.name),notes:wf.notes}])
     setShowWorkout(false)
-    setWf({date:dkey(new Date()),location:'Home',lifts:[{name:'',sets:'',reps:'',weight:''}],notes:''})
+    setWf({date:dkey(new Date()),location:'Home',lifts:[],notes:''})
   }
   function bestLift(ex,loc){
     let best=0
@@ -927,25 +959,99 @@ export default function App(){
   }
 
   function WorkoutModal(){
+    const [activeExCat,setActiveExCat]=useState('push')
+    const added=new Set(wf.lifts.map(l=>l.name).filter(Boolean))
+    function addExercise(name,cat){
+      if(added.has(name))return
+      const isCardio=cat==='cardio'
+      setWf(p=>({...p,lifts:[...p.lifts,{name,category:cat,sets:'',reps:'',weight:'',duration:'',distance:''}]}))
+    }
+    function upd(i,field,val){setWf(p=>({...p,lifts:p.lifts.map((x,j)=>j===i?{...x,[field]:val}:x)}))}
     return(
       <div style={S.ov}><div style={S.mo}>
-        <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>🏋 Log Workout Session</div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>🏋 Log Workout Session</div>
+
+        {/* Date + Location */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
           <div><label style={{fontSize:12,color:'#94a3b8'}}>Date</label><input type="date" value={wf.date} onChange={e=>setWf(p=>({...p,date:e.target.value}))} style={{...S.inp,marginTop:4}}/></div>
           <div><label style={{fontSize:12,color:'#94a3b8'}}>Location</label><select value={wf.location} onChange={e=>setWf(p=>({...p,location:e.target.value}))} style={{...S.inp,marginTop:4}}>{LOCS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
         </div>
-        <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>Lifts</div>
-        {wf.lifts.map((lft,i)=>(
-          <div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:5,marginBottom:6,alignItems:'center'}}>
-            <input placeholder="Exercise" value={lft.name} onChange={e=>setWf(p=>({...p,lifts:p.lifts.map((x,j)=>j===i?{...x,name:e.target.value}:x)}))} style={{...S.inp,fontSize:12}}/>
-            <input placeholder="Sets" type="number" value={lft.sets} onChange={e=>setWf(p=>({...p,lifts:p.lifts.map((x,j)=>j===i?{...x,sets:e.target.value}:x)}))} style={{...S.inp,fontSize:12}}/>
-            <input placeholder="Reps" type="number" value={lft.reps} onChange={e=>setWf(p=>({...p,lifts:p.lifts.map((x,j)=>j===i?{...x,reps:e.target.value}:x)}))} style={{...S.inp,fontSize:12}}/>
-            <input placeholder="lbs" type="number" value={lft.weight} onChange={e=>setWf(p=>({...p,lifts:p.lifts.map((x,j)=>j===i?{...x,weight:e.target.value}:x)}))} style={{...S.inp,fontSize:12}}/>
-            <button onClick={()=>setWf(p=>({...p,lifts:p.lifts.filter((_,j)=>j!==i)}))} disabled={wf.lifts.length===1} style={{...S.bs,background:wf.lifts.length===1?'#374151':'#7f1d1d',padding:'6px 8px'}}>✕</button>
+
+        {/* 5 muscle group category tabs */}
+        <div style={{display:'flex',gap:4,marginBottom:10}}>
+          {EXERCISE_CATS.map(c=>(
+            <button key={c.id} onClick={()=>setActiveExCat(c.id)} style={{flex:'1 1 0',minWidth:0,padding:'7px 4px',borderRadius:7,border:'none',cursor:'pointer',textAlign:'center',lineHeight:1.25,
+              background:activeExCat===c.id?COLORS.workout:'#1e293b',
+              color:activeExCat===c.id?'#fff':'#94a3b8',
+              outline:activeExCat===c.id?'2px solid '+COLORS.workout:'none',
+              fontWeight:700,fontSize:11}}>
+              <div>{c.label}</div>
+              {c.sub&&<div style={{fontSize:8,fontWeight:400,opacity:0.75,marginTop:1}}>{c.sub}</div>}
+            </button>
+          ))}
+        </div>
+
+        {/* Exercise picker for active category */}
+        <div style={{background:'#0a0f1e',borderRadius:8,padding:8,marginBottom:12,maxHeight:150,overflowY:'auto'}}>
+          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+            {PRESET_EXERCISES[activeExCat].map(name=>{
+              const pr=bestLift(name,wf.location),isAdded=added.has(name)
+              return(
+                <button key={name} onClick={()=>addExercise(name,activeExCat)}
+                  style={{padding:'5px 9px',borderRadius:5,border:'none',fontSize:11,cursor:isAdded?'default':'pointer',whiteSpace:'nowrap',
+                    background:isAdded?'#14532d':'#1e293b',color:isAdded?'#4ade80':'#cbd5e1'}}>
+                  {name}
+                  {pr&&!isAdded&&<span style={{color:'#fbbf24',marginLeft:5,fontSize:10}}>·{pr}lb</span>}
+                  {isAdded&&<span style={{marginLeft:4,fontSize:10}}>✓</span>}
+                </button>
+              )
+            })}
+            {/* Custom exercise button */}
+            <button onClick={()=>addExercise('',activeExCat)}
+              style={{padding:'5px 9px',borderRadius:5,border:'1px dashed #334155',fontSize:11,cursor:'pointer',background:'transparent',color:'#64748b'}}>
+              + Custom
+            </button>
           </div>
-        ))}
-        <button onClick={()=>setWf(p=>({...p,lifts:[...p.lifts,{name:'',sets:'',reps:'',weight:''}]}))} style={{...S.bs,marginBottom:10}}>+ Add Lift</button>
-        <textarea placeholder="Notes..." value={wf.notes} onChange={e=>setWf(p=>({...p,notes:e.target.value}))} style={{...S.inp,height:60,resize:'vertical',marginBottom:12}}/>
+        </div>
+
+        {/* Session exercises list */}
+        {wf.lifts.length===0
+          ?<div style={{color:'#475569',fontSize:12,textAlign:'center',padding:'10px 0 14px'}}>Tap exercises above to add them · or use + Custom</div>
+          :<div style={{marginBottom:8}}>
+            {wf.lifts.map((lft,i)=>{
+              const isCardio=lft.category==='cardio'
+              const pr=lft.name?bestLift(lft.name,wf.location):null
+              const catColor=lft.category==='push'?COLORS.day:lft.category==='pull'?COLORS.night:lft.category==='legs'?COLORS.off:lft.category==='cardio'?COLORS.appt:COLORS.content
+              return(
+                <div key={i} style={{background:'#0a0f1e',borderRadius:8,padding:'8px 10px',marginBottom:6,borderLeft:`3px solid ${catColor}`}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+                    {lft.name
+                      ?<div style={{flex:1,fontWeight:600,fontSize:12,color:'#e2e8f0'}}>
+                          {lft.name}
+                          {pr&&<span style={{fontSize:10,color:'#fbbf24',marginLeft:7,fontWeight:400}}>PR @{wf.location}: {pr} lbs</span>}
+                        </div>
+                      :<input placeholder="Exercise name" autoFocus value={lft.name} onChange={e=>upd(i,'name',e.target.value)} style={{...S.inp,flex:1,fontSize:12}}/>
+                    }
+                    <button onClick={()=>setWf(p=>({...p,lifts:p.lifts.filter((_,j)=>j!==i)}))} style={{...S.bs,background:'#7f1d1d',padding:'3px 8px',fontSize:11}}>✕</button>
+                  </div>
+                  {isCardio
+                    ?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="Duration" type="number" value={lft.duration} onChange={e=>upd(i,'duration',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b',whiteSpace:'nowrap'}}>min</span></div>
+                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="Distance" type="number" step="0.01" value={lft.distance} onChange={e=>upd(i,'distance',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b',whiteSpace:'nowrap'}}>mi</span></div>
+                      </div>
+                    :<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="3" type="number" value={lft.sets} onChange={e=>upd(i,'sets',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>sets</span></div>
+                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="8" type="number" value={lft.reps} onChange={e=>upd(i,'reps',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>reps</span></div>
+                        <div style={{display:'flex',alignItems:'center',gap:5}}><input placeholder="0" type="number" value={lft.weight} onChange={e=>upd(i,'weight',e.target.value)} style={{...S.inp,fontSize:11}}/><span style={{fontSize:10,color:'#64748b'}}>lbs</span></div>
+                      </div>
+                  }
+                </div>
+              )
+            })}
+          </div>
+        }
+
+        <textarea placeholder="Session notes..." value={wf.notes} onChange={e=>setWf(p=>({...p,notes:e.target.value}))} style={{...S.inp,height:50,resize:'vertical',marginBottom:12}}/>
         <div style={{display:'flex',gap:8}}>
           <button onClick={saveSession} style={S.bp}>Save Session</button>
           <button onClick={()=>setShowWorkout(false)} style={S.bs}>Cancel</button>
