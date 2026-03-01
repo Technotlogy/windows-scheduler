@@ -882,7 +882,10 @@ export default function App(){
     const maxW=Math.max(...filtered.map(l=>Number(l.weight)||0),1)
     return(
       <div>
-        <div style={{fontWeight:700,fontSize:16,marginBottom:12}}>📈 Strength Trends</div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <div style={{fontWeight:700,fontSize:16}}>📈 Strength Trends</div>
+          <button onClick={()=>{setWf({date:dkey(new Date()),location:'Home',lifts:[],notes:''});setShowWorkout(true)}} style={{...S.bp,fontSize:12,padding:'6px 14px'}}>🏋 Log Workout</button>
+        </div>
         <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
           <select value={ex} onChange={e=>setTrendEx(e.target.value)} style={{...S.inp,width:'auto'}}>{exList.length===0&&<option>No lifts logged yet</option>}{exList.map(e=><option key={e} value={e}>{e}</option>)}</select>
           <select value={trendLoc} onChange={e=>setTrendLoc(e.target.value)} style={{...S.inp,width:'auto'}}><option value="All">All Locations</option>{LOCS.map(l=><option key={l} value={l}>{l}</option>)}</select>
@@ -959,14 +962,14 @@ export default function App(){
   }
 
   function WorkoutModal(){
-    const [activeExCat,setActiveExCat]=useState('push')
+    const [openCat,setOpenCat]=useState('push')
     const added=new Set(wf.lifts.map(l=>l.name).filter(Boolean))
     function addExercise(name,cat){
       if(added.has(name))return
-      const isCardio=cat==='cardio'
       setWf(p=>({...p,lifts:[...p.lifts,{name,category:cat,sets:'',reps:'',weight:'',duration:'',distance:''}]}))
     }
     function upd(i,field,val){setWf(p=>({...p,lifts:p.lifts.map((x,j)=>j===i?{...x,[field]:val}:x)}))}
+    const CAT_COLORS={push:COLORS.day,pull:COLORS.night,legs:COLORS.off,cardio:COLORS.appt,other:COLORS.content}
     return(
       <div style={S.ov}><div style={S.mo}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>🏋 Log Workout Session</div>
@@ -977,58 +980,67 @@ export default function App(){
           <div><label style={{fontSize:12,color:'#94a3b8'}}>Location</label><select value={wf.location} onChange={e=>setWf(p=>({...p,location:e.target.value}))} style={{...S.inp,marginTop:4}}>{LOCS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
         </div>
 
-        {/* 5 muscle group category tabs */}
-        <div style={{display:'flex',gap:4,marginBottom:10}}>
-          {EXERCISE_CATS.map(c=>(
-            <button key={c.id} onClick={()=>setActiveExCat(c.id)} style={{flex:'1 1 0',minWidth:0,padding:'7px 4px',borderRadius:7,border:'none',cursor:'pointer',textAlign:'center',lineHeight:1.25,
-              background:activeExCat===c.id?COLORS.workout:'#1e293b',
-              color:activeExCat===c.id?'#fff':'#94a3b8',
-              outline:activeExCat===c.id?'2px solid '+COLORS.workout:'none',
-              fontWeight:700,fontSize:11}}>
-              <div>{c.label}</div>
-              {c.sub&&<div style={{fontSize:8,fontWeight:400,opacity:0.75,marginTop:1}}>{c.sub}</div>}
-            </button>
-          ))}
-        </div>
-
-        {/* Exercise picker for active category */}
-        <div style={{background:'#0a0f1e',borderRadius:8,padding:8,marginBottom:12,maxHeight:150,overflowY:'auto'}}>
-          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-            {PRESET_EXERCISES[activeExCat].map(name=>{
-              const pr=bestLift(name,wf.location),isAdded=added.has(name)
-              return(
-                <button key={name} onClick={()=>addExercise(name,activeExCat)}
-                  style={{padding:'5px 9px',borderRadius:5,border:'none',fontSize:11,cursor:isAdded?'default':'pointer',whiteSpace:'nowrap',
-                    background:isAdded?'#14532d':'#1e293b',color:isAdded?'#4ade80':'#cbd5e1'}}>
-                  {name}
-                  {pr&&!isAdded&&<span style={{color:'#fbbf24',marginLeft:5,fontSize:10}}>·{pr}lb</span>}
-                  {isAdded&&<span style={{marginLeft:4,fontSize:10}}>✓</span>}
+        {/* 5 vertically stacked muscle group accordions */}
+        <div style={{display:'flex',flexDirection:'column',gap:4,marginBottom:14}}>
+          {EXERCISE_CATS.map(c=>{
+            const isOpen=openCat===c.id
+            const cc=CAT_COLORS[c.id]
+            const catCount=wf.lifts.filter(l=>l.category===c.id).length
+            return(
+              <div key={c.id} style={{borderRadius:8,overflow:'hidden',border:`1px solid ${isOpen?cc:'#1e293b'}`}}>
+                {/* Category header */}
+                <button onClick={()=>setOpenCat(isOpen?null:c.id)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:isOpen?'#0f172a':'#1e293b',border:'none',cursor:'pointer',textAlign:'left'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontWeight:700,fontSize:13,color:isOpen?cc:'#e2e8f0'}}>{c.label}</span>
+                    {c.sub&&<span style={{fontSize:11,color:'#64748b'}}>{c.sub}</span>}
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    {catCount>0&&<span style={{fontSize:11,color:cc,fontWeight:700}}>{catCount} added</span>}
+                    <span style={{color:'#64748b',fontSize:12}}>{isOpen?'▲':'▼'}</span>
+                  </div>
                 </button>
-              )
-            })}
-            {/* Custom exercise button */}
-            <button onClick={()=>addExercise('',activeExCat)}
-              style={{padding:'5px 9px',borderRadius:5,border:'1px dashed #334155',fontSize:11,cursor:'pointer',background:'transparent',color:'#64748b'}}>
-              + Custom
-            </button>
-          </div>
+                {/* Exercise picker (open state) */}
+                {isOpen&&(
+                  <div style={{background:'#0a0f1e',padding:'8px 10px',display:'flex',flexWrap:'wrap',gap:5}}>
+                    {PRESET_EXERCISES[c.id].map(name=>{
+                      const pr=bestLift(name,wf.location),isAdded=added.has(name)
+                      return(
+                        <button key={name} onClick={()=>addExercise(name,c.id)}
+                          style={{padding:'5px 9px',borderRadius:5,border:'none',fontSize:11,cursor:isAdded?'default':'pointer',whiteSpace:'nowrap',
+                            background:isAdded?'#14532d':'#1e293b',color:isAdded?'#4ade80':'#cbd5e1'}}>
+                          {name}
+                          {pr&&!isAdded&&<span style={{color:'#fbbf24',marginLeft:4,fontSize:10}}>·{pr}lb</span>}
+                          {isAdded&&<span style={{marginLeft:4,fontSize:10}}>✓</span>}
+                        </button>
+                      )
+                    })}
+                    <button onClick={()=>addExercise('',c.id)}
+                      style={{padding:'5px 9px',borderRadius:5,border:'1px dashed #334155',fontSize:11,cursor:'pointer',background:'transparent',color:'#64748b'}}>
+                      + Custom
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* Session exercises list */}
         {wf.lifts.length===0
-          ?<div style={{color:'#475569',fontSize:12,textAlign:'center',padding:'10px 0 14px'}}>Tap exercises above to add them · or use + Custom</div>
-          :<div style={{marginBottom:8}}>
+          ?<div style={{color:'#475569',fontSize:12,textAlign:'center',padding:'8px 0 12px'}}>Expand a category above and tap exercises to add them</div>
+          :<div style={{marginBottom:10}}>
+            <div style={{fontSize:11,color:'#64748b',fontWeight:700,marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>This Session</div>
             {wf.lifts.map((lft,i)=>{
               const isCardio=lft.category==='cardio'
               const pr=lft.name?bestLift(lft.name,wf.location):null
-              const catColor=lft.category==='push'?COLORS.day:lft.category==='pull'?COLORS.night:lft.category==='legs'?COLORS.off:lft.category==='cardio'?COLORS.appt:COLORS.content
+              const cc=CAT_COLORS[lft.category]||COLORS.content
               return(
-                <div key={i} style={{background:'#0a0f1e',borderRadius:8,padding:'8px 10px',marginBottom:6,borderLeft:`3px solid ${catColor}`}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+                <div key={i} style={{background:'#0a0f1e',borderRadius:8,padding:'8px 10px',marginBottom:6,borderLeft:`3px solid ${cc}`}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:isCardio||lft.sets!==undefined?5:0}}>
                     {lft.name
                       ?<div style={{flex:1,fontWeight:600,fontSize:12,color:'#e2e8f0'}}>
                           {lft.name}
-                          {pr&&<span style={{fontSize:10,color:'#fbbf24',marginLeft:7,fontWeight:400}}>PR @{wf.location}: {pr} lbs</span>}
+                          {pr&&<span style={{fontSize:10,color:'#fbbf24',marginLeft:7,fontWeight:400}}>PR: {pr} lbs</span>}
                         </div>
                       :<input placeholder="Exercise name" autoFocus value={lft.name} onChange={e=>upd(i,'name',e.target.value)} style={{...S.inp,flex:1,fontSize:12}}/>
                     }
