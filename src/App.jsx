@@ -1437,7 +1437,7 @@ export default function App(){
   }
 
   // ── Bottom nav tabs ────────────────────────────────────────────────────────
-  const TABS=[['daily','📆','Daily'],['weekly','📅','Weekly'],['monthly','🗓','Monthly'],['trends','📈','Trends'],['content','📹','Content'],['gym','🏋','Gym']]
+  const TABS=[['daily','📆','Daily'],['weekly','📅','Weekly'],['monthly','🗓','Monthly'],['trends','📈','Trends'],['gym','🏋','Gym'],['content','📹','Content']]
 
   return(
     <div style={S.app}>
