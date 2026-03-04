@@ -44,20 +44,29 @@ const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 //   { plannedWeight: number|null, plannedReps: string, myorep: bool }
 // Logged set: { weight, reps, rir, myoreps: number }
 
-function makeSet(repRange = '8-12') {
-  return { plannedWeight: null, plannedReps: repRange, myorep: false }
+function makeSet(reps = 10) {
+  return { plannedWeight: null, plannedReps: reps, myorep: null }
 }
 
 // Migrate old format (sets: number) → new format (sets: array)
+// Also migrates: plannedReps string→number, myorep boolean→null/0
 function migrateSets(ex) {
-  if (Array.isArray(ex.sets)) return ex.sets
-  return Array.from({ length: ex.sets || 3 }, () => makeSet(ex.repRange || '8-12'))
+  if (Array.isArray(ex.sets)) return ex.sets.map(s => ({
+    ...s,
+    plannedReps: typeof s.plannedReps === 'string' ? parseMidReps(s.plannedReps) : (s.plannedReps ?? parseMidReps(ex.repRange)),
+    myorep: typeof s.myorep === 'boolean' ? (s.myorep ? 0 : null) : s.myorep,
+  }))
+  return Array.from({ length: ex.sets || 3 }, () => makeSet(parseMidReps(ex.repRange || '8-12')))
 }
 
 function migrateTemplates(templates) {
   return (templates || []).map(t => ({
     ...t,
-    exercises: (t.exercises || []).map(ex => ({ ...ex, sets: migrateSets(ex) }))
+    exercises: (t.exercises || []).map(ex => ({
+      ...ex,
+      repRange: typeof ex.repRange === 'string' ? parseMidReps(ex.repRange) : (ex.repRange ?? 10),
+      sets: migrateSets(ex),
+    }))
   }))
 }
 
@@ -167,6 +176,7 @@ function getTodayTemplate(program, templates, date=new Date()) {
 }
 function parseMidReps(range) {
   if (!range) return 10
+  if (typeof range === 'number') return range
   const p = range.split('-').map(s=>parseFloat(s)).filter(Boolean)
   return p.length===2 ? Math.round((p[0]+p[1])/2) : (p[0]||10)
 }
@@ -224,7 +234,8 @@ function SessionLogger({ template, targetRir, isDeload, deloadFactor, sessions, 
           myoreps: 0,
           plannedWeight: ps.plannedWeight,
           plannedReps: ps.plannedReps,
-          isMyo: ps.myorep,
+          isMyo: ps.myorep != null,
+          plannedMyo: typeof ps.myorep === 'number' ? ps.myorep : 0,
         })),
       }
     }),
@@ -371,7 +382,7 @@ function SessionLogger({ template, targetRir, isDeload, deloadFactor, sessions, 
                         style={{ background:'none', border:'none', color:C.muted, cursor:'pointer', fontSize:13, padding:0 }}>×</button>
                     </div>
                   ) : (
-                    <button onClick={()=>{ setMyoOpen({ei,si}); setMyoVal('3') }}
+                    <button onClick={()=>{ setMyoOpen({ei,si}); setMyoVal(set.plannedMyo>0 ? String(set.plannedMyo) : '') }}
                       style={{ ...S.btn(C.warn), fontSize:11, padding:'4px 6px' }}>+⚡</button>
                   )}
                 </div>
@@ -458,7 +469,7 @@ function TodayView({ program, templates, sessions, onSessionSave }) {
               ? ex.sets.slice(0, Math.max(1, Math.round(ex.sets.length*deloadFactor)))
               : ex.sets
             const catColor = CAT_COLORS[ex.category]||C.muted
-            const hasMyo = planSets.some(s=>s.myorep)
+            const hasMyo = planSets.some(s=>s.myorep != null)
             const weights = planSets.map(s=>s.plannedWeight).filter(Boolean)
             const wtLabel = weights.length===0 ? null
               : weights.every(w=>w===weights[0]) ? `${weights[0]} lbs`
@@ -716,6 +727,8 @@ function TemplatesView({ templates, setTemplates }) {
   const [newCats, setNewCats] = useState([])
   const [addExForm, setAddExForm] = useState(null)
   const [editingNameId, setEditingNameId] = useState(null) // inline name edit
+  const [tmplMyoOpen, setTmplMyoOpen] = useState(null) // {exId, si} — which set's myo input is open
+  const [tmplMyoVal, setTmplMyoVal] = useState('')
 
   const tmpl = templates.find(t=>t.id===selectedId)
 
@@ -763,8 +776,8 @@ function TemplatesView({ templates, setTemplates }) {
     const count = Number(addExForm.setsCount)||3
     const ex = {
       id:uid(), name:addExForm.name.trim(), category:addExForm.category||'other',
-      repRange:addExForm.repRange||'8-12', notes:addExForm.notes||'',
-      sets: Array.from({length:count}, ()=>makeSet(addExForm.repRange||'8-12')),
+      repRange:Number(addExForm.repRange)||10, notes:addExForm.notes||'',
+      sets: Array.from({length:count}, ()=>makeSet(Number(addExForm.repRange)||10)),
     }
     setTemplates(ts=>ts.map(t=>t.id!==selectedId?t:{...t,exercises:[...t.exercises,ex]}))
     setAddExForm(null)
@@ -820,7 +833,7 @@ function TemplatesView({ templates, setTemplates }) {
                 <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
                   {t.exercises.length} exercises · {t.exercises.reduce((n,e)=>n+e.sets.length,0)} sets total
                   {t.categories.map(c=><span key={c} style={{ ...S.tag(CAT_COLORS[c]||C.muted), marginLeft:4 }}>{c}</span>)}
-                  {t.exercises.some(e=>e.sets.some(s=>s.myorep))&&
+                  {t.exercises.some(e=>e.sets.some(s=>s.myorep != null))&&
                     <span style={{ ...S.tag(C.warn), marginLeft:4 }}>⚡ myo</span>}
                 </div>
               </div>
@@ -892,9 +905,9 @@ function TemplatesView({ templates, setTemplates }) {
                 </select>
               </div>
               <div>
-                <label style={S.label}>Default Rep Range</label>
-                <input style={S.input} value={ex.repRange||''} placeholder="8-12"
-                  onChange={e=>updExercise(ex.id,{repRange:e.target.value})} />
+                <label style={S.label}>Default Reps</label>
+                <input type="number" style={S.input} value={ex.repRange??''} placeholder="10"
+                  onChange={e=>updExercise(ex.id,{repRange:e.target.value===''?null:Number(e.target.value)})} />
               </div>
             </div>
 
@@ -910,26 +923,49 @@ function TemplatesView({ templates, setTemplates }) {
               </div>
 
               {/* Column headers */}
-              <div style={{ display:'grid', gridTemplateColumns:'22px 1fr 1fr 36px', gap:4, marginBottom:4 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'22px 1fr 1fr 50px', gap:4, marginBottom:4 }}>
                 <span style={S.label}>#</span>
                 <span style={S.label}>Planned Weight</span>
-                <span style={S.label}>Rep Range</span>
-                <span style={S.label}>⚡</span>
+                <span style={S.label}>Reps</span>
+                <span style={S.label}>⚡ Myo</span>
               </div>
 
-              {ex.sets.map((set, si) => (
-                <div key={si} style={{ display:'grid', gridTemplateColumns:'22px 1fr 1fr 36px', gap:4, marginBottom:4, alignItems:'center' }}>
-                  <span style={{ fontSize:11, color:C.muted, textAlign:'center' }}>{si+1}</span>
-                  <input type="number" step="2.5" style={S.input}
-                    value={set.plannedWeight??''} placeholder="—"
-                    onChange={e=>updTmplSet(ex.id,si,'plannedWeight',e.target.value===''?null:Number(e.target.value))} />
-                  <input style={S.input} value={set.plannedReps||''} placeholder={ex.repRange||'8-12'}
-                    onChange={e=>updTmplSet(ex.id,si,'plannedReps',e.target.value)} />
-                  <button onClick={()=>updTmplSet(ex.id,si,'myorep',!set.myorep)}
-                    style={{ ...S.btn(set.myorep?C.warn:C.muted,set.myorep), padding:'4px 6px', fontSize:13 }}
-                    title="Mark as myo-rep set">⚡</button>
-                </div>
-              ))}
+              {ex.sets.map((set, si) => {
+                const isTmplMyoOpen = tmplMyoOpen?.exId===ex.id && tmplMyoOpen?.si===si
+                return (
+                  <div key={si} style={{ display:'grid', gridTemplateColumns:'22px 1fr 1fr 50px', gap:4, marginBottom:4, alignItems:'center' }}>
+                    <span style={{ fontSize:11, color:C.muted, textAlign:'center' }}>{si+1}</span>
+                    <input type="number" step="2.5" style={S.input}
+                      value={set.plannedWeight??''} placeholder="—"
+                      onChange={e=>updTmplSet(ex.id,si,'plannedWeight',e.target.value===''?null:Number(e.target.value))} />
+                    <input type="number" style={S.input} value={set.plannedReps??''} placeholder={ex.repRange??'10'}
+                      onChange={e=>updTmplSet(ex.id,si,'plannedReps',e.target.value===''?null:Number(e.target.value))} />
+                    {isTmplMyoOpen ? (
+                      <div style={{ display:'flex', gap:2 }}>
+                        <input type="number" autoFocus min={0} max={50} placeholder="any"
+                          style={{ ...S.input, padding:'6px 4px', width:34 }}
+                          value={tmplMyoVal} onChange={e=>setTmplMyoVal(e.target.value)}
+                          onKeyDown={e=>{ if(e.key==='Enter'){updTmplSet(ex.id,si,'myorep',tmplMyoVal===''?0:Number(tmplMyoVal));setTmplMyoOpen(null)} if(e.key==='Escape')setTmplMyoOpen(null) }} />
+                        <button onClick={()=>{updTmplSet(ex.id,si,'myorep',tmplMyoVal===''?0:Number(tmplMyoVal));setTmplMyoOpen(null)}}
+                          style={{ ...S.btn(C.warn,true), padding:'4px 5px', fontSize:11 }}>✓</button>
+                      </div>
+                    ) : set.myorep != null ? (
+                      <div style={{ display:'flex', gap:2, alignItems:'center' }}>
+                        <button onClick={()=>{setTmplMyoOpen({exId:ex.id,si});setTmplMyoVal(set.myorep>0?String(set.myorep):'')}}
+                          style={{ ...S.btn(C.warn,true), padding:'3px 5px', fontSize:11 }}>
+                          ⚡{set.myorep>0?set.myorep:''}
+                        </button>
+                        <button onClick={()=>updTmplSet(ex.id,si,'myorep',null)}
+                          style={{ background:'none', border:'none', color:C.muted, cursor:'pointer', fontSize:13, padding:0 }}>×</button>
+                      </div>
+                    ) : (
+                      <button onClick={()=>{setTmplMyoOpen({exId:ex.id,si});setTmplMyoVal('')}}
+                        style={{ ...S.btn(C.muted), padding:'4px 5px', fontSize:13 }}
+                        title="Mark as myo-rep set">⚡</button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
             {ex.notes&&<div style={{ fontSize:11, color:C.muted, marginTop:8 }}>{ex.notes}</div>}
@@ -963,9 +999,9 @@ function TemplatesView({ templates, setTemplates }) {
               value={addExForm.name} onChange={e=>setAddExForm(f=>({...f,name:e.target.value}))} />
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 80px', gap:6, marginBottom:12 }}>
-            <div><label style={S.label}>Rep Range</label>
-              <input style={S.input} placeholder="8-12" value={addExForm.repRange||''}
-                onChange={e=>setAddExForm(f=>({...f,repRange:e.target.value}))} /></div>
+            <div><label style={S.label}>Reps</label>
+              <input type="number" style={S.input} placeholder="10" value={addExForm.repRange||''}
+                onChange={e=>setAddExForm(f=>({...f,repRange:e.target.value===''?'':Number(e.target.value)}))} /></div>
             <div><label style={S.label}>Notes</label>
               <input style={S.input} placeholder="optional" value={addExForm.notes||''}
                 onChange={e=>setAddExForm(f=>({...f,notes:e.target.value}))} /></div>
@@ -980,7 +1016,7 @@ function TemplatesView({ templates, setTemplates }) {
         </div>
       ) : (
         <button
-          onClick={()=>setAddExForm({category:'push',name:'',setsCount:3,repRange:'8-12',notes:''})}
+          onClick={()=>setAddExForm({category:'push',name:'',setsCount:3,repRange:10,notes:''})}
           style={{ ...S.btn(C.accent,true), width:'100%', padding:'10px 0', fontSize:13 }}>
           + Add Exercise
         </button>
