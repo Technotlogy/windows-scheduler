@@ -367,11 +367,11 @@ function SessionLogger({ template, targetRir, isDeload, deloadFactor, sessions, 
 
                   {/* Myo cell */}
                   {isMyoOpen ? (
-                    <div style={{ display:'flex', gap:2 }}>
-                      <input type="number" autoFocus min={1} max={50}
-                        style={{ ...S.input, padding:'6px 4px', width:34 }}
-                        value={myoVal} onChange={e=>setMyoVal(e.target.value)}
-                        onKeyDown={e=>{ if(e.key==='Enter')commitMyo(ei,si); if(e.key==='Escape')setMyoOpen(null) }} />
+                    <div style={{ display:'flex', gap:4 }}>
+                      <input type="text" inputMode="numeric" pattern="[0-9]*" autoFocus placeholder="reps"
+                        style={{ ...S.input, padding:'6px 6px', width:52 }}
+                        value={myoVal} onChange={e=>setMyoVal(e.target.value.replace(/\D/g,''))}
+                        onKeyDown={e=>{ if(e.key==='Enter'){e.preventDefault();e.stopPropagation();commitMyo(ei,si)} if(e.key==='Escape'){e.preventDefault();setMyoOpen(null)} }} />
                       <button onClick={()=>commitMyo(ei,si)}
                         style={{ ...S.btn(C.warn,true), padding:'4px 6px', fontSize:11 }}>✓</button>
                     </div>
@@ -941,11 +941,11 @@ function TemplatesView({ templates, setTemplates }) {
                     <input type="number" style={S.input} value={set.plannedReps??''} placeholder={ex.repRange??'10'}
                       onChange={e=>updTmplSet(ex.id,si,'plannedReps',e.target.value===''?null:Number(e.target.value))} />
                     {isTmplMyoOpen ? (
-                      <div style={{ display:'flex', gap:2 }}>
-                        <input type="number" autoFocus min={0} max={50} placeholder="any"
-                          style={{ ...S.input, padding:'6px 4px', width:34 }}
-                          value={tmplMyoVal} onChange={e=>setTmplMyoVal(e.target.value)}
-                          onKeyDown={e=>{ if(e.key==='Enter'){updTmplSet(ex.id,si,'myorep',tmplMyoVal===''?0:Number(tmplMyoVal));setTmplMyoOpen(null)} if(e.key==='Escape')setTmplMyoOpen(null) }} />
+                      <div style={{ display:'flex', gap:4 }}>
+                        <input type="text" inputMode="numeric" pattern="[0-9]*" autoFocus placeholder="any"
+                          style={{ ...S.input, padding:'6px 6px', width:52 }}
+                          value={tmplMyoVal} onChange={e=>setTmplMyoVal(e.target.value.replace(/\D/g,''))}
+                          onKeyDown={e=>{ if(e.key==='Enter'){e.preventDefault();e.stopPropagation();updTmplSet(ex.id,si,'myorep',tmplMyoVal===''?0:Number(tmplMyoVal));setTmplMyoOpen(null)} if(e.key==='Escape'){e.preventDefault();setTmplMyoOpen(null)} }} />
                         <button onClick={()=>{updTmplSet(ex.id,si,'myorep',tmplMyoVal===''?0:Number(tmplMyoVal));setTmplMyoOpen(null)}}
                           style={{ ...S.btn(C.warn,true), padding:'4px 5px', fontSize:11 }}>✓</button>
                       </div>
