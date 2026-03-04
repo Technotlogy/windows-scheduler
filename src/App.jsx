@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { usePersist, exportData, importData } from './usePersist'
 import { useGoogleCalendar } from './useGoogleCalendar'
 import { parseEvent, autopopulateDay } from './claude'
+import WorkoutPlanner from './WorkoutPlanner'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const COLORS = {
@@ -1436,7 +1437,7 @@ export default function App(){
   }
 
   // ── Bottom nav tabs ────────────────────────────────────────────────────────
-  const TABS=[['daily','📆','Daily'],['weekly','📅','Weekly'],['monthly','🗓','Monthly'],['trends','📈','Trends'],['content','📹','Content']]
+  const TABS=[['daily','📆','Daily'],['weekly','📅','Weekly'],['monthly','🗓','Monthly'],['trends','📈','Trends'],['content','📹','Content'],['gym','🏋','Gym']]
 
   return(
     <div style={S.app}>
@@ -1474,6 +1475,7 @@ export default function App(){
         {tab==='monthly'&&<MonthlyView/>}
         {tab==='trends'&&<TrendsView/>}
         {tab==='content'&&<ContentView/>}
+        {tab==='gym'&&<WorkoutPlanner/>}
       </div>
 
       {/* Bottom nav (mobile-style) */}
