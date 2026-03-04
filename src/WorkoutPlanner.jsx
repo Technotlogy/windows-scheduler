@@ -372,17 +372,17 @@ function SessionLogger({ template, targetRir, isDeload, deloadFactor, sessions, 
                         style={{ ...S.input, padding:'6px 6px', width:52 }}
                         value={myoVal} onChange={e=>setMyoVal(e.target.value.replace(/\D/g,''))}
                         onKeyDown={e=>{ if(e.key==='Enter'){e.preventDefault();e.stopPropagation();commitMyo(ei,si)} if(e.key==='Escape'){e.preventDefault();setMyoOpen(null)} }} />
-                      <button onClick={()=>commitMyo(ei,si)}
+                      <button type="button" onClick={()=>commitMyo(ei,si)}
                         style={{ ...S.btn(C.warn,true), padding:'4px 6px', fontSize:11 }}>✓</button>
                     </div>
                   ) : set.myoreps > 0 ? (
                     <div style={{ ...S.row, gap:3 }}>
                       <span style={S.tag(C.warn)}>⚡{set.myoreps}</span>
-                      <button onClick={()=>updSet(ei,si,'myoreps',0)}
+                      <button type="button" onClick={()=>updSet(ei,si,'myoreps',0)}
                         style={{ background:'none', border:'none', color:C.muted, cursor:'pointer', fontSize:13, padding:0 }}>×</button>
                     </div>
                   ) : (
-                    <button onClick={()=>{ setMyoOpen({ei,si}); setMyoVal(set.plannedMyo>0 ? String(set.plannedMyo) : '') }}
+                    <button type="button" onClick={()=>{ setMyoOpen({ei,si}); setMyoVal(set.plannedMyo>0 ? String(set.plannedMyo) : '') }}
                       style={{ ...S.btn(C.warn), fontSize:11, padding:'4px 6px' }}>+⚡</button>
                   )}
                 </div>
@@ -390,9 +390,9 @@ function SessionLogger({ template, targetRir, isDeload, deloadFactor, sessions, 
             })}
 
             <div style={{ ...S.row, marginTop:4 }}>
-              <button onClick={()=>addSet(ei)} style={{ ...S.btn(C.muted), fontSize:11, padding:'2px 8px' }}>+ Set</button>
+              <button type="button" onClick={()=>addSet(ei)} style={{ ...S.btn(C.muted), fontSize:11, padding:'2px 8px' }}>+ Set</button>
               {ex.sets.length>1 &&
-                <button onClick={()=>removeSet(ei)} style={{ ...S.btn(C.push), fontSize:11, padding:'2px 8px' }}>− Set</button>}
+                <button type="button" onClick={()=>removeSet(ei)} style={{ ...S.btn(C.push), fontSize:11, padding:'2px 8px' }}>− Set</button>}
             </div>
           </div>
         )
@@ -406,10 +406,10 @@ function SessionLogger({ template, targetRir, isDeload, deloadFactor, sessions, 
       </div>
 
       <div style={S.row}>
-        <button onClick={save} style={{ ...S.btn(C.success,true), flex:1, padding:'10px 0', fontSize:14 }}>
+        <button type="button" onClick={save} style={{ ...S.btn(C.success,true), flex:1, padding:'10px 0', fontSize:14 }}>
           ✓ Complete Workout
         </button>
-        <button onClick={onCancel} style={S.btn()}>Cancel</button>
+        <button type="button" onClick={onCancel} style={S.btn()}>Cancel</button>
       </div>
     </div>
   )
@@ -485,7 +485,7 @@ function TodayView({ program, templates, sessions, onSessionSave }) {
               </div>
             )
           })}
-          <button onClick={()=>{ setManualId(null); setLogging(true) }}
+          <button type="button" onClick={()=>{ setManualId(null); setLogging(true) }}
             style={{ ...S.btn(C.success,true), width:'100%', padding:10, fontSize:14, marginTop:12 }}>
             🏋 Start Workout
           </button>
@@ -502,7 +502,7 @@ function TodayView({ program, templates, sessions, onSessionSave }) {
           <div style={{ fontSize:12, color:C.muted, marginBottom:8 }}>Log a different workout:</div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
             {templates.map(t=>(
-              <button key={t.id} onClick={()=>{ setManualId(t.id); setLogging(true) }}
+              <button type="button" key={t.id} onClick={()=>{ setManualId(t.id); setLogging(true) }}
                 style={S.btn(t.categories[0]?CAT_COLORS[t.categories[0]]:C.muted)}>
                 {t.name}
               </button>
@@ -571,8 +571,8 @@ function ProgramView({ program, setProgram, templates }) {
         <div style={{ ...S.row, justifyContent:'space-between', marginBottom:12 }}>
           <div style={{ fontWeight:700, fontSize:15, color:C.accent }}>Edit Program</div>
           <div style={S.row}>
-            <button onClick={()=>{ setProgram(form); setEditing(false) }} style={S.btn(C.success,true)}>Save</button>
-            <button onClick={()=>setEditing(false)} style={S.btn()}>Cancel</button>
+            <button type="button" onClick={()=>{ setProgram(form); setEditing(false) }} style={S.btn(C.success,true)}>Save</button>
+            <button type="button" onClick={()=>setEditing(false)} style={S.btn()}>Cancel</button>
           </div>
         </div>
 
@@ -602,13 +602,13 @@ function ProgramView({ program, setProgram, templates }) {
                     <div style={S.row}>
                       <span style={{ fontSize:11, color:C.muted }}>RIR:</span>
                       {[0,1,2,3,4].map(r=>(
-                        <button key={r} onClick={()=>setWeekRir(wi,r)}
+                        <button type="button" key={r} onClick={()=>setWeekRir(wi,r)}
                           style={{ ...S.btn(r===rir?C.accent:C.muted+'88',r===rir), padding:'2px 7px', fontSize:12 }}>{r}</button>
                       ))}
                     </div>
                   )}
                 </div>
-                <button onClick={()=>toggleDeload(wn)}
+                <button type="button" onClick={()=>toggleDeload(wn)}
                   style={{ ...S.btn(isDL?C.deload:C.muted,isDL), fontSize:11, padding:'2px 7px' }}>
                   {isDL?'✓ Deload':'Deload'}
                 </button>
@@ -662,7 +662,7 @@ function ProgramView({ program, setProgram, templates }) {
       <div style={{ textAlign:'center', padding:40 }}>
         <div style={{ fontSize:48, marginBottom:12 }}>🗓️</div>
         <div style={{ color:C.muted, marginBottom:16 }}>No training program yet.</div>
-        <button onClick={()=>startEdit(makeDefaultProgram())} style={S.btn(C.accent,true)}>Create Program</button>
+        <button type="button" onClick={()=>startEdit(makeDefaultProgram())} style={S.btn(C.accent,true)}>Create Program</button>
       </div>
     )
   }
@@ -676,7 +676,7 @@ function ProgramView({ program, setProgram, templates }) {
             <div style={{ fontWeight:800, fontSize:16, color:C.accent }}>{program.name}</div>
             <div style={{ fontSize:11, color:C.muted }}>Started {program.startDate} · {program.weeksTotal} weeks</div>
           </div>
-          <button onClick={()=>startEdit(program)} style={S.btn()}>Edit</button>
+          <button type="button" onClick={()=>startEdit(program)} style={S.btn()}>Edit</button>
         </div>
         <div style={{ background:'#1e293b', borderRadius:4, height:6, marginBottom:6 }}>
           <div style={{ background:C.accent, borderRadius:4, height:6, width:`${progress*100}%`, transition:'width .3s' }}/>
@@ -713,7 +713,7 @@ function ProgramView({ program, setProgram, templates }) {
         })}
       </div>
       <div style={{ textAlign:'center', marginTop:8 }}>
-        <button onClick={()=>startEdit(makeDefaultProgram())} style={S.btn(C.muted)}>New Program</button>
+        <button type="button" onClick={()=>startEdit(makeDefaultProgram())} style={S.btn(C.muted)}>New Program</button>
       </div>
     </div>
   )
@@ -799,7 +799,7 @@ function TemplatesView({ templates, setTemplates }) {
       <div>
         <div style={{ ...S.row, justifyContent:'space-between', marginBottom:12 }}>
           <div style={{ fontWeight:700, fontSize:15 }}>Day Templates</div>
-          <button onClick={()=>setShowCreate(true)} style={S.btn(C.accent,true)}>+ Template</button>
+          <button type="button" onClick={()=>setShowCreate(true)} style={S.btn(C.accent,true)}>+ Template</button>
         </div>
 
         {showCreate && (
@@ -810,13 +810,13 @@ function TemplatesView({ templates, setTemplates }) {
             <div style={{ fontSize:11, color:C.muted, marginBottom:6 }}>Categories:</div>
             <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
               {CATEGORIES.map(c=>(
-                <button key={c.id} onClick={()=>setNewCats(cs=>cs.includes(c.id)?cs.filter(x=>x!==c.id):[...cs,c.id])}
+                <button type="button" key={c.id} onClick={()=>setNewCats(cs=>cs.includes(c.id)?cs.filter(x=>x!==c.id):[...cs,c.id])}
                   style={S.btn(CAT_COLORS[c.id],newCats.includes(c.id))}>{c.emoji} {c.label}</button>
               ))}
             </div>
             <div style={S.row}>
-              <button onClick={createTemplate} style={S.btn(C.success,true)}>Create</button>
-              <button onClick={()=>setShowCreate(false)} style={S.btn()}>Cancel</button>
+              <button type="button" onClick={createTemplate} style={S.btn(C.success,true)}>Create</button>
+              <button type="button" onClick={()=>setShowCreate(false)} style={S.btn()}>Cancel</button>
             </div>
           </div>
         )}
@@ -838,7 +838,7 @@ function TemplatesView({ templates, setTemplates }) {
                 </div>
               </div>
               <div style={S.row}>
-                <button onClick={e=>{e.stopPropagation();setTemplates(ts=>ts.filter(x=>x.id!==t.id))}}
+                <button type="button" onClick={e=>{e.stopPropagation();setTemplates(ts=>ts.filter(x=>x.id!==t.id))}}
                   style={{ ...S.btn(C.push), padding:'2px 7px', fontSize:11 }}>✕</button>
                 <span style={{ color:C.muted, fontSize:18 }}>›</span>
               </div>
@@ -855,7 +855,7 @@ function TemplatesView({ templates, setTemplates }) {
   return (
     <div>
       <div style={{ ...S.row, justifyContent:'space-between', marginBottom:12 }}>
-        <button onClick={()=>{ setSelectedId(null); setEditingNameId(null) }} style={S.btn()}>← Back</button>
+        <button type="button" onClick={()=>{ setSelectedId(null); setEditingNameId(null) }} style={S.btn()}>← Back</button>
         <div style={{ fontWeight:700, fontSize:15 }}>{tmpl.name}</div>
         <div style={{ width:60 }}/>
       </div>
@@ -888,11 +888,11 @@ function TemplatesView({ templates, setTemplates }) {
                 </div>
               )}
               <div style={S.row}>
-                <button onClick={()=>moveEx(ex.id,-1)} disabled={idx===0}
+                <button type="button" onClick={()=>moveEx(ex.id,-1)} disabled={idx===0}
                   style={{ ...S.btn(C.muted), padding:'1px 6px', opacity:idx===0?0.35:1 }}>↑</button>
-                <button onClick={()=>moveEx(ex.id,1)} disabled={idx===tmpl.exercises.length-1}
+                <button type="button" onClick={()=>moveEx(ex.id,1)} disabled={idx===tmpl.exercises.length-1}
                   style={{ ...S.btn(C.muted), padding:'1px 6px', opacity:idx===tmpl.exercises.length-1?0.35:1 }}>↓</button>
-                <button onClick={()=>removeExercise(ex.id)} style={{ ...S.btn(C.push), padding:'1px 6px' }}>✕</button>
+                <button type="button" onClick={()=>removeExercise(ex.id)} style={{ ...S.btn(C.push), padding:'1px 6px' }}>✕</button>
               </div>
             </div>
 
@@ -916,9 +916,9 @@ function TemplatesView({ templates, setTemplates }) {
               <div style={{ ...S.row, justifyContent:'space-between', marginBottom:6 }}>
                 <label style={{ ...S.label, marginBottom:0 }}>Sets ({ex.sets.length})</label>
                 <div style={S.row}>
-                  <button onClick={()=>addTmplSet(ex.id)} style={{ ...S.btn(C.success), padding:'1px 8px', fontSize:11 }}>+ Set</button>
+                  <button type="button" onClick={()=>addTmplSet(ex.id)} style={{ ...S.btn(C.success), padding:'1px 8px', fontSize:11 }}>+ Set</button>
                   {ex.sets.length>1&&
-                    <button onClick={()=>removeTmplSet(ex.id)} style={{ ...S.btn(C.push), padding:'1px 8px', fontSize:11 }}>− Set</button>}
+                    <button type="button" onClick={()=>removeTmplSet(ex.id)} style={{ ...S.btn(C.push), padding:'1px 8px', fontSize:11 }}>− Set</button>}
                 </div>
               </div>
 
@@ -946,20 +946,20 @@ function TemplatesView({ templates, setTemplates }) {
                           style={{ ...S.input, padding:'6px 6px', width:52 }}
                           value={tmplMyoVal} onChange={e=>setTmplMyoVal(e.target.value.replace(/\D/g,''))}
                           onKeyDown={e=>{ if(e.key==='Enter'){e.preventDefault();e.stopPropagation();updTmplSet(ex.id,si,'myorep',tmplMyoVal===''?0:Number(tmplMyoVal));setTmplMyoOpen(null)} if(e.key==='Escape'){e.preventDefault();setTmplMyoOpen(null)} }} />
-                        <button onClick={()=>{updTmplSet(ex.id,si,'myorep',tmplMyoVal===''?0:Number(tmplMyoVal));setTmplMyoOpen(null)}}
+                        <button type="button" onClick={()=>{updTmplSet(ex.id,si,'myorep',tmplMyoVal===''?0:Number(tmplMyoVal));setTmplMyoOpen(null)}}
                           style={{ ...S.btn(C.warn,true), padding:'4px 5px', fontSize:11 }}>✓</button>
                       </div>
                     ) : set.myorep != null ? (
                       <div style={{ display:'flex', gap:2, alignItems:'center' }}>
-                        <button onClick={()=>{setTmplMyoOpen({exId:ex.id,si});setTmplMyoVal(set.myorep>0?String(set.myorep):'')}}
+                        <button type="button" onClick={()=>{setTmplMyoOpen({exId:ex.id,si});setTmplMyoVal(set.myorep>0?String(set.myorep):'')}}
                           style={{ ...S.btn(C.warn,true), padding:'3px 5px', fontSize:11 }}>
                           ⚡{set.myorep>0?set.myorep:''}
                         </button>
-                        <button onClick={()=>updTmplSet(ex.id,si,'myorep',null)}
+                        <button type="button" onClick={()=>updTmplSet(ex.id,si,'myorep',null)}
                           style={{ background:'none', border:'none', color:C.muted, cursor:'pointer', fontSize:13, padding:0 }}>×</button>
                       </div>
                     ) : (
-                      <button onClick={()=>{setTmplMyoOpen({exId:ex.id,si});setTmplMyoVal('')}}
+                      <button type="button" onClick={()=>{setTmplMyoOpen({exId:ex.id,si});setTmplMyoVal('')}}
                         style={{ ...S.btn(C.muted), padding:'4px 5px', fontSize:13 }}
                         title="Mark as myo-rep set">⚡</button>
                     )}
@@ -981,7 +981,7 @@ function TemplatesView({ templates, setTemplates }) {
             <label style={S.label}>Category</label>
             <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
               {CATEGORIES.map(c=>(
-                <button key={c.id} onClick={()=>setAddExForm(f=>({...f,category:c.id,name:''}))}
+                <button type="button" key={c.id} onClick={()=>setAddExForm(f=>({...f,category:c.id,name:''}))}
                   style={S.btn(CAT_COLORS[c.id],addExForm.category===c.id)}>{c.emoji} {c.label}</button>
               ))}
             </div>
@@ -1010,12 +1010,12 @@ function TemplatesView({ templates, setTemplates }) {
                 onChange={e=>setAddExForm(f=>({...f,setsCount:e.target.value}))} /></div>
           </div>
           <div style={S.row}>
-            <button onClick={addExercise} style={S.btn(C.success,true)}>Add</button>
-            <button onClick={()=>setAddExForm(null)} style={S.btn()}>Cancel</button>
+            <button type="button" onClick={addExercise} style={S.btn(C.success,true)}>Add</button>
+            <button type="button" onClick={()=>setAddExForm(null)} style={S.btn()}>Cancel</button>
           </div>
         </div>
       ) : (
-        <button
+        <button type="button"
           onClick={()=>setAddExForm({category:'push',name:'',setsCount:3,repRange:10,notes:''})}
           style={{ ...S.btn(C.accent,true), width:'100%', padding:'10px 0', fontSize:13 }}>
           + Add Exercise
@@ -1049,8 +1049,8 @@ function HistoryView({ sessions, onDelete }) {
     return (
       <div>
         <div style={{ ...S.row, justifyContent:'space-between', marginBottom:12 }}>
-          <button onClick={()=>setSelectedId(null)} style={S.btn()}>← Back</button>
-          <button onClick={()=>{ onDelete(sel.id); setSelectedId(null) }} style={S.btn(C.push)}>Delete</button>
+          <button type="button" onClick={()=>setSelectedId(null)} style={S.btn()}>← Back</button>
+          <button type="button" onClick={()=>{ onDelete(sel.id); setSelectedId(null) }} style={S.btn(C.push)}>Delete</button>
         </div>
         <div style={{ ...S.card(C.accent+'33'), marginBottom:10 }}>
           <div style={{ fontWeight:800, fontSize:15 }}>{sel.templateName}</div>
@@ -1095,7 +1095,7 @@ function HistoryView({ sessions, onDelete }) {
     <div>
       <div style={{ ...S.row, justifyContent:'space-between', marginBottom:12 }}>
         <div style={{ fontWeight:700, fontSize:15 }}>History</div>
-        <button onClick={()=>setShowPRs(v=>!v)} style={S.btn(showPRs?C.warn:C.muted,showPRs)}>🏆 PRs</button>
+        <button type="button" onClick={()=>setShowPRs(v=>!v)} style={S.btn(showPRs?C.warn:C.muted,showPRs)}>🏆 PRs</button>
       </div>
 
       {showPRs&&(
@@ -1160,7 +1160,7 @@ export default function WorkoutPlanner() {
     <div style={{ paddingBottom:8 }}>
       <div style={{ display:'flex', gap:3, marginBottom:14, background:C.surface, borderRadius:10, padding:4 }}>
         {INNER_TABS.map(([id,icon,label])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{
+          <button type="button" key={id} onClick={()=>setTab(id)} style={{
             flex:1, background:tab===id?'#1e293b':'transparent', border:'none', borderRadius:7,
             color:tab===id?C.accent:C.muted, padding:'7px 2px', fontSize:11, cursor:'pointer',
             fontWeight:tab===id?700:400, display:'flex', flexDirection:'column', alignItems:'center', gap:2,
