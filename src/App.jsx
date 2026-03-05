@@ -719,11 +719,13 @@ export default function App(){
                   </div>
                   <button onClick={()=>{
                     const k2=dkey(date)
-                    if(s.type==='task'||s.type==='errand')setTasks(p=>[...p,{id:Date.now(),text:s.label,type:'specific',date:k2,done:{},priority:'normal',duration:s.duration||''}])
-                    else if(s.type==='meal')setMeals(p=>({...p,[k2]:s.label+(s.notes?' — '+s.notes:'')}))
-                    else if(s.type==='decompress')setDecomp(p=>({...p,[k2]:s.label+(s.notes?' — '+s.notes:'')}))
+                    const schedAppt=s.time?{id:Date.now(),title:s.label,time:s.time,person:'',contact:'',location:'',notes:s.notes||'',duration:s.duration||'',travelTime:''}:null
+                    const addToSchedule=()=>{if(schedAppt)setAppts(p=>({...p,[k2]:[...(p[k2]||[]),schedAppt]}))}
+                    if(s.type==='task'||s.type==='errand'){setTasks(p=>[...p,{id:Date.now(),text:s.label,type:'specific',date:k2,done:{},priority:'normal',duration:s.duration||''}]);addToSchedule()}
+                    else if(s.type==='meal'){setMeals(p=>({...p,[k2]:s.label+(s.notes?' — '+s.notes:'')}));addToSchedule()}
+                    else if(s.type==='decompress'){setDecomp(p=>({...p,[k2]:s.label+(s.notes?' — '+s.notes:'')}));addToSchedule()}
                     else if(s.type==='workout')setShowWorkout(true)
-                    else if(s.type==='content')setTasks(p=>[...p,{id:Date.now(),text:'📹 '+s.label,type:'specific',date:k2,done:{},priority:'normal',duration:s.duration||''}])
+                    else if(s.type==='content'){setTasks(p=>[...p,{id:Date.now(),text:'📹 '+s.label,type:'specific',date:k2,done:{},priority:'normal',duration:s.duration||''}]);addToSchedule()}
                     setAutoSuggestions(p=>({...p,[k]:p[k].filter((_,j)=>j!==i)}))
                   }} style={{...S.bs,fontSize:10,padding:'2px 8px',background:'#1e1035',color:'#a78bfa',border:'1px solid #7c3aed',whiteSpace:'nowrap'}}>+ Add</button>
                 </div>
